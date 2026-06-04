@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gift Card Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0e0e11;--s1:#16161a;--s2:#1e1e24;--s3:#26262e;--bd:rgba(255,255,255,.07);--bd2:rgba(255,255,255,.13);--tx:#ededf0;--mt:#5a5a6a;--ac:#7c5cfc;--green:#4ade80;--amber:#fbbf24;--mono:'JetBrains Mono',monospace}
+html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'Readex Pro',sans-serif;font-size:14px;overflow:hidden}
+.app{display:grid;grid-template-columns:260px 1fr;height:100vh}
+.panel{background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;height:100%;overflow:hidden}.panel-scroll{flex:1;overflow-y:auto;min-height:0;display:flex;flex-direction:column}
+.ph{padding:20px 16px 14px;border-bottom:1px solid var(--bd);flex-shrink:0}
+.ph-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mt);margin-bottom:3px}
+.ph-title{font-size:18px;font-weight:500}
+.dz{margin:14px;border:1.5px dashed var(--bd2);border-radius:10px;padding:24px 14px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;position:relative;flex-shrink:0}
+.dz:hover,.dz.over{border-color:var(--ac);background:rgba(124,92,252,.05)}
+.dz input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dz-icon{font-size:26px;margin-bottom:8px;color:var(--mt)}
+.dz p{font-size:12px;color:var(--mt);line-height:1.6}
+.dz strong{color:var(--tx);font-weight:400}
+.q-wrap{flex:1;overflow-y:auto;padding:0 14px 14px}
+.q-label{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--mt);margin:14px 0 8px;display:block}
+.q-list{display:flex;flex-direction:column;gap:5px}
+.q-item{background:var(--s2);border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;cursor:pointer;border:1px solid transparent;transition:border-color .15s}
+.q-item:hover{border-color:var(--bd2)}
+.q-item.sel{border-color:var(--ac)}
+.q-thumb{width:34px;height:24px;border-radius:3px;object-fit:cover;background:#222;flex-shrink:0}
+.q-info{flex:1;min-width:0}
+.q-name{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-note{font-size:10px;font-family:var(--mono);color:var(--mt)}
+.q-del{width:18px;height:18px;border:none;background:transparent;color:var(--mt);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:color .15s}
+.q-del:hover{color:#f87171}
+.badge{font-size:9px;font-family:var(--mono);padding:2px 7px;border-radius:999px;border:1px solid;white-space:nowrap;flex-shrink:0}
+.b-auto{color:var(--green);border-color:rgba(74,222,128,.25);background:rgba(74,222,128,.07)}
+.b-manual{color:var(--amber);border-color:rgba(251,191,36,.25);background:rgba(251,191,36,.07)}
+.b-proc{color:var(--mt);border-color:var(--bd2);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+.main{display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:48px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:8px;padding:0 20px;flex-shrink:0}
+.tb-sp{flex:1}
+.zc{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--mt);font-family:var(--mono)}
+.zb{width:22px;height:22px;border:1px solid var(--bd2);background:var(--s2);color:var(--tx);border-radius:4px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center}
+.zb:hover{background:var(--s3)}
+.tb-btn{height:28px;padding:0 14px;border-radius:999px;border:none;cursor:pointer;font-family:'Readex Pro',sans-serif;font-size:11px;transition:opacity .15s}
+.tb-btn:hover{opacity:.8}
+.tb-ghost{background:var(--s2);color:var(--tx);border:1px solid var(--bd2)}
+.tb-add{background:var(--s2);color:var(--tx);border:1px solid var(--bd2);position:relative}
+.tb-add input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.stage{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:48px 32px 32px}
+.cards-grid{display:flex;flex-wrap:wrap;gap:24px;justify-content:center;align-items:flex-start;transform-origin:top center;transition:transform .2s}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--mt);text-align:center;height:100%;width:100%}
+.empty-icon{font-size:56px;opacity:.15}
+.card-slot{display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer}
+.gift-card{width:190px;background:#F4F4F5;border-radius:8px;padding-bottom:4px;display:flex;flex-direction:column;gap:4px;font-family:'Readex Pro',sans-serif;box-shadow:0 10px 36px rgba(0,0,0,.55);outline:2px solid transparent;transition:outline .15s}
+.gift-card.sel{outline:2px solid var(--ac)}
+.gc-img-wrap{padding:4px}
+.gc-img-box{width:182px;height:132px;border-radius:9px;position:relative;overflow:hidden;background:#D3D5D7}
+.gc-canvas{position:absolute;inset:0;width:100%;height:100%}
+.gc-details{padding:0 8px;margin-bottom:24px}
+.gc-title{font-family:'Readex Pro',sans-serif;font-size:14px;font-weight:400;color:#000;line-height:1.3;text-transform:uppercase;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:0}
+.gc-buttons{padding:0 4px;display:flex;gap:4px;align-items:center}
+.gc-buy{flex:1;height:32px;background:#E6E7E8;border-radius:999px;border:none;font-family:'Readex Pro',sans-serif;font-size:14px;color:#000;cursor:pointer}
+.gc-fav{width:32px;height:32px;min-width:32px;background:#E4E4E4;border-radius:30px;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.slot-meta{display:flex;flex-direction:column;align-items:center;gap:4px;width:190px}
+.slot-name{font-size:10px;color:var(--mt);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;text-align:center}
+.mpw{flex-shrink:0;border-top:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden;max-height:0;transition:max-height .35s cubic-bezier(.4,0,.2,1)}
+.mpw.open{max-height:218px}
+.mp-header{height:46px;display:flex;align-items:center;gap:10px;padding:0 18px;cursor:pointer;background:var(--s1);flex-shrink:0}
+.mp-header span{font-size:11px;color:var(--mt);text-transform:uppercase;letter-spacing:.07em}
+.mp-file{font-size:10px;color:#a78bfa;font-family:var(--mono);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mp-chev{font-size:10px;color:var(--mt);transition:transform .3s}
+.mpw.open .mp-chev{transform:rotate(180deg)}
+.mp-body{display:grid;grid-template-columns:148px 1fr;background:var(--s1);border-top:1px solid var(--bd);height:170px;overflow:hidden}
+.mp-left{padding:14px 12px;border-right:1px solid var(--bd);display:flex;flex-direction:column;align-items:center;gap:10px}
+.mp-mini{width:112px;background:#F4F4F5;border-radius:5px;padding-bottom:2px;display:flex;flex-direction:column;gap:2px;box-shadow:0 4px 16px rgba(0,0,0,.45)}
+.mp-mi{margin:2px;height:80px;border-radius:5px;background:#D3D5D7;position:relative;overflow:hidden}
+.mp-mi canvas{position:absolute;inset:0;width:100%;height:100%}
+.mp-mt{padding:0 4px 2px;font-size:7px;text-transform:uppercase;color:#000;font-family:'Readex Pro',sans-serif;line-height:1.3}
+.mp-mb{padding:0 2px 2px;display:flex;gap:2px}
+.mp-mbuy{flex:1;height:16px;background:#E6E7E8;border-radius:999px;border:none;font-size:6px;font-family:'Readex Pro',sans-serif;color:#000}
+.mp-mfav{width:16px;height:16px;background:#E4E4E4;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center}
+.mp-apply{width:100%;height:28px;background:var(--ac);border:none;border-radius:999px;color:#fff;font-family:'Readex Pro',sans-serif;font-size:11px;cursor:pointer}
+.mp-apply:hover{opacity:.85}
+.mp-right{padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;align-content:start;overflow-y:auto}
+.ctrl{display:flex;flex-direction:column;gap:5px}
+.cl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--mt)}
+.seg{display:flex;gap:2px;background:var(--s2);padding:2px;border-radius:6px}
+.seg-btn{flex:1;height:24px;border:none;background:transparent;color:var(--mt);font-family:'Readex Pro',sans-serif;font-size:10px;cursor:pointer;border-radius:4px;transition:background .15s,color .15s;white-space:nowrap}
+.seg-btn.on{background:var(--s3);color:var(--tx)}
+.colors{display:flex;flex-wrap:wrap;gap:4px}
+.sw{width:22px;height:22px;border-radius:4px;border:2px solid transparent;cursor:pointer;transition:transform .12s,border-color .12s;position:relative}
+.sw:hover{transform:scale(1.1)}
+.sw.on{border-color:#fff}
+.sw.cx{background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);overflow:hidden}
+.sw.cx input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.sl{display:flex;align-items:center;gap:6px}
+.sl input[type=range]{flex:1;height:3px;-webkit-appearance:none;background:var(--bd2);border-radius:2px;outline:none;cursor:pointer}
+.sl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--tx);cursor:pointer}
+.sv{font-family:var(--mono);font-size:10px;color:var(--mt);min-width:30px;text-align:right}
+.dov{position:fixed;inset:0;background:rgba(124,92,252,.08);border:2px dashed var(--ac);pointer-events:none;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;z-index:100}
+.dov.show{opacity:1}
+.dov p{font-size:16px;color:var(--ac);letter-spacing:.05em}
+/* ── Generator ── */
+.gen-section{border-top:1px solid var(--bd);flex-shrink:0;min-height:0}
+.gen-header{height:40px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:background .15s}
+.gen-header:hover{background:var(--s2)}
+.gen-title{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--mt)}
+.gen-chev{font-size:10px;color:var(--mt);transition:transform .3s}
+.gen-chev.open{transform:rotate(180deg)}
+.gen-body{padding:0 14px 14px;display:none}
+.gen-body.open{display:block}
+.gen-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--mt);margin-bottom:6px}
+.cat-grid{display:flex;flex-wrap:wrap;gap:5px}
+.cat-btn{height:26px;padding:0 10px;border-radius:999px;border:1px solid var(--bd2);background:transparent;color:var(--mt);font-family:"Readex Pro",sans-serif;font-size:11px;cursor:pointer;transition:background .15s,color .15s,border-color .15s;white-space:nowrap}
+.cat-btn:hover{border-color:var(--bd);color:var(--tx)}
+.cat-btn.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.gen-count-row{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.gen-count-row input[type=range]{flex:1;height:3px;-webkit-appearance:none;background:var(--bd2);border-radius:2px;outline:none;cursor:pointer}
+.gen-count-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--tx);cursor:pointer}
+.gen-count-val{font-family:var(--mono);font-size:11px;color:var(--tx);min-width:28px;text-align:right}
+.gen-btn{width:100%;height:34px;background:var(--ac);border:none;border-radius:8px;color:#fff;font-family:"Readex Pro",sans-serif;font-size:12px;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.gen-btn:hover{opacity:.85}
+.gen-btn:disabled{opacity:.4;cursor:not-allowed}
+.gen-progress{margin-top:10px}
+.gen-prog-bar{height:3px;background:var(--bd2);border-radius:2px;overflow:hidden;margin-bottom:5px}
+.gen-prog-fill{height:100%;background:var(--ac);border-radius:2px;transition:width .3s}
+.gen-prog-label{font-size:10px;color:var(--mt);font-family:var(--mono)}
+/* ── Slot actions ── */
+.slot-actions{display:flex;gap:4px;margin-top:4px;width:190px}
+.slot-action-btn{flex:1;height:26px;border:none;border-radius:6px;cursor:pointer;font-family:"Readex Pro",sans-serif;font-size:10px;transition:opacity .15s}
+.slot-action-btn:hover{opacity:.8}
+.btn-retry{background:var(--s3);color:var(--mt);border:1px solid var(--bd2)}
+.btn-retry:hover{color:var(--tx);border-color:var(--bd)}
+
+/* ── Alt picker overlay ── */
+.alt-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.alt-overlay.show{opacity:1;pointer-events:all}
+.alt-modal{background:var(--s1);border:1px solid var(--bd2);border-radius:14px;padding:20px;width:520px;max-width:92vw;max-height:85vh;display:flex;flex-direction:column;gap:14px}
+.alt-modal-header{display:flex;align-items:center;justify-content:space-between}
+.alt-modal-title{font-size:13px;font-weight:500;color:var(--tx)}
+.alt-modal-sub{font-size:11px;color:var(--mt);margin-top:2px}
+.alt-close{width:28px;height:28px;border:none;background:var(--s2);color:var(--mt);border-radius:6px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+.alt-close:hover{color:var(--tx)}
+.alt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;overflow-y:auto;flex:1}
+.alt-thumb{border:2px solid var(--bd);border-radius:8px;overflow:hidden;cursor:pointer;transition:border-color .15s;position:relative;aspect-ratio:182/132}
+.alt-thumb:hover{border-color:var(--ac)}
+.alt-thumb.sel{border-color:#22c55e}
+.alt-thumb canvas{width:100%;height:100%;display:block}
+.alt-thumb-label{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);font-size:9px;color:#fff;padding:3px 5px;font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.alt-actions{display:flex;gap:8px}
+.alt-regen{flex:1;height:34px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:"Readex Pro",sans-serif;font-size:12px;cursor:pointer}
+.alt-regen:hover{background:var(--s3)}
+.alt-apply{flex:1;height:34px;background:#22c55e;border:none;border-radius:8px;color:#fff;font-family:"Readex Pro",sans-serif;font-size:12px;cursor:pointer;font-weight:500}
+.alt-apply:hover{opacity:.9}
+.alt-loading{text-align:center;color:var(--mt);font-size:12px;padding:20px 0}
+
+/* ── Brand import ── */
+#impStatusLog{max-height:200px;overflow-y:auto}#impStatusLog .imp-row{display:flex;align-items:center;gap:7px;padding:4px 0;border-bottom:1px solid var(--bd);font-size:11px}
+#impStatusLog .imp-row:last-child{border-bottom:none}
+.imp-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.imp-dot.ok{background:#22c55e}
+.imp-dot.fail{background:#ef4444}
+.imp-dot.loading{background:var(--ac);animation:pulse 1s infinite}
+.imp-row-name{color:var(--tx);flex:1}
+.imp-row-src{color:var(--mt);font-family:var(--mono);font-size:10px}
+.imp-hint{font-size:11px;color:var(--mt);line-height:1.5;margin-bottom:8px}
+.imp-dropzone{border:1.5px dashed var(--bd2);border-radius:8px;padding:14px;text-align:center;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;gap:8px;transition:border-color .2s}
+.imp-dropzone:hover{border-color:var(--ac)}
+.imp-dropzone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.imp-dz-icon{font-size:16px;color:var(--mt)}
+.imp-dz-txt{font-size:12px;color:var(--mt)}
+#brandInput{width:100%;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:8px;color:var(--tx);font-family:var(--mono);font-size:11px;resize:vertical;outline:none;line-height:1.5}
+#brandInput:focus{border-color:var(--ac)}
+.imp-key-row{margin-top:6px}
+.imp-key-row input{width:100%;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:7px 10px;color:var(--tx);font-family:var(--mono);font-size:10px;outline:none}
+.imp-key-row input::placeholder{color:var(--mt)}
+.imp-key-row input:focus{border-color:var(--ac)}
+.imp-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:320px;overflow-y:auto}
+.imp-card{border:2px solid var(--bd);border-radius:8px;padding:8px;cursor:pointer;transition:border-color .15s;position:relative;background:var(--s2)}
+.imp-card:hover{border-color:var(--bd2)}
+.imp-card.picked{border-color:#22c55e;background:rgba(34,197,94,.08)}
+.imp-card.error{border-color:#ef4444;opacity:.5}
+.imp-logo-wrap{height:52px;display:flex;align-items:center;justify-content:center;background:var(--s3);border-radius:5px;margin-bottom:6px;overflow:hidden}
+.imp-logo-wrap img{max-width:100%;max-height:100%;object-fit:contain}
+.imp-brand-name{font-size:10px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.imp-brand-domain{font-size:9px;color:var(--mt);font-family:var(--mono);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.imp-check{position:absolute;top:4px;right:4px;width:14px;height:14px;border-radius:50%;background:#22c55e;display:none;align-items:center;justify-content:center;font-size:9px;color:#fff}
+.imp-card.picked .imp-check{display:flex}
+.imp-status{font-size:9px;font-family:var(--mono);padding:2px 6px;border-radius:999px;position:absolute;bottom:4px;right:4px}
+.imp-status.found{background:rgba(34,197,94,.15);color:#22c55e}
+.imp-status.notfound{background:rgba(239,68,68,.15);color:#ef4444}
+</style>
+</head>
+<body>
+<div class="dov" id="dov"><p>Drop to add</p></div>
+
+<!-- Alt picker overlay -->
+<div class="alt-overlay" id="altOverlay">
+  <div class="alt-modal">
+    <div class="alt-modal-header">
+      <div>
+        <div class="alt-modal-title" id="altModalTitle">Try another option</div>
+        <div class="alt-modal-sub" id="altModalSub">Select a variant or regenerate</div>
+      </div>
+      <button class="alt-close" id="altClose">✕</button>
+    </div>
+    <div class="alt-grid" id="altGrid"></div>
+    <div class="alt-actions">
+      <button class="alt-regen" id="altRegen">↻ Generate more options</button>
+      <button class="alt-apply" id="altApply">✓ Use selected</button>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <div class="panel">
+    <div class="ph">
+      <div class="ph-label">Gift Card Studio</div>
+      <div class="ph-title">Logo Fitter</div>
+    </div>
+    <div class="panel-scroll" id="panelScroll">
+    <div class="dz" id="dz">
+      <input type="file" id="fi" accept="image/*" multiple>
+      <div class="dz-icon">⊕</div>
+      <p><strong>Drop images here</strong><br>or click to browse<br><span style="font-size:11px;opacity:.6">Logos · Photos · Card art · PNG · JPG</span></p>
+    </div>
+    <!-- ── GENERATOR ── -->
+    <div class="gen-section" id="genSection">
+      <div class="gen-header" id="genToggle">
+        <span class="gen-title">Generate by Category</span>
+        <span class="gen-chev" id="genChev">▼</span>
+      </div>
+      <div class="gen-body" id="genBody">
+        <div class="gen-label">Number of cards</div>
+        <div class="gen-count-row">
+          <input type="range" id="genCount" min="1" max="100" value="6" step="1">
+          <span class="gen-count-val" id="genCountVal">6</span>
+        </div>
+        <button class="gen-btn" id="genBtn">
+          <span id="genBtnTxt">✦ Generate cards</span>
+        </button>
+        <div class="gen-progress" id="genProgress" style="display:none">
+          <div class="gen-prog-bar"><div class="gen-prog-fill" id="genProgFill"></div></div>
+          <span class="gen-prog-label" id="genProgLabel">0 / 0</span>
+        </div>
+        <div class="gen-label" style="margin-top:12px">Category</div>
+        <div class="cat-grid" id="catGrid"></div>
+      </div>
+    </div>
+
+    <!-- ── BRAND IMPORT ── -->
+    <div class="gen-section" id="importSection">
+      <div class="gen-header" id="importToggle">
+        <span class="gen-title">Import Brands</span>
+        <span class="gen-chev" id="importChev">▼</span>
+      </div>
+      <div class="gen-body" id="importBody">
+        <p class="imp-hint">One brand per line — system finds logos from 5 open sources and builds cards automatically.</p>
+        <div class="imp-dropzone" id="impDz">
+          <input type="file" id="impFile" accept=".csv,.txt,text/plain,text/csv">
+          <span class="imp-dz-icon">⊕</span>
+          <span class="imp-dz-txt">Drop CSV / TXT here</span>
+        </div>
+        <div class="gen-label" style="margin-top:10px">Or type brands</div>
+        <textarea id="brandInput" placeholder="Nike&#10;Adidas&#10;Netflix&#10;Starbucks&#10;..." rows="5"></textarea>
+        <button class="gen-btn" id="impBtn" style="margin-top:8px">
+          <span id="impBtnTxt">▶ Build cards</span>
+        </button>
+        <div class="gen-progress" id="impProgress" style="display:none">
+          <div class="gen-prog-bar"><div class="gen-prog-fill" id="impProgFill"></div></div>
+          <span class="gen-prog-label" id="impProgLabel">0 / 0</span>
+        </div>
+        <div id="impStatusLog" style="display:none;margin-top:8px"></div>
+      </div>
+    </div>
+
+    <div class="q-wrap">
+      <span class="q-label">Files <span id="qc" style="color:var(--tx)">0</span></span>
+      <div class="q-list" id="ql"></div>
+    </div>
+    </div><!-- /panel-scroll -->
+  </div>
+  <div class="main">
+    <div class="topbar">
+      <span style="font-size:11px;color:var(--mt);font-family:var(--mono)" id="tinfo">—</span>
+      <div class="tb-sp"></div>
+      <div class="zc">
+        <button class="zb" id="zo">−</button>
+        <span id="zv">100%</span>
+        <button class="zb" id="zi">+</button>
+      </div>
+      <button class="tb-btn tb-ghost" id="bexp">↓ Export all</button>
+      <button class="tb-btn tb-add">+ Add files<input type="file" id="fi2" accept="image/*" multiple></button>
+    </div>
+    <div class="stage" id="stage">
+      <div class="empty" id="emp">
+        <div class="empty-icon">🎴</div>
+        <p style="font-size:13px;line-height:1.9">Drop logos or photos here<br><span style="font-size:11px;opacity:.5">Auto-detects type and fits to card</span></p>
+      </div>
+      <div class="cards-grid" id="cg" style="display:none"></div>
+    </div>
+    <div class="mpw" id="mpw">
+      <div class="mp-header" id="mph">
+        <span>Manual override</span>
+        <span class="mp-file" id="mpf">—</span>
+        <span class="mp-chev">▲</span>
+      </div>
+      <div class="mp-body">
+        <div class="mp-left">
+          <div class="mp-mini">
+            <div class="mp-mi"><canvas id="mc" width="108" height="80"></canvas></div>
+            <div class="mp-mt">Steam Gift —<br>Card 200</div>
+            <div class="mp-mb">
+              <button class="mp-mbuy">Buy Now</button>
+              <button class="mp-mfav"><svg width="7" height="7" viewBox="0 0 14 14" fill="none"><path d="M7 12.5C7 12.5 1 8.8 1 5 1 3.2 2.4 1.8 4.1 1.8c1.1 0 2 .6 2.5 1.5L7 4l.4-.7C7.9 2.4 8.8 1.8 9.9 1.8 11.6 1.8 13 3.2 13 5c0 3.8-6 7.5-6 7.5Z" stroke="#A0A3A7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+          </div>
+          <button class="mp-apply" id="mpa">Apply</button>
+        </div>
+        <div class="mp-right">
+          <div class="ctrl"><span class="cl">Mode</span>
+            <div class="seg" id="seg">
+              <button class="seg-btn on" data-m="cover">Cover</button>
+              <button class="seg-btn" data-m="logo">Logo</button>
+              <button class="seg-btn" data-m="blur">Blur</button>
+              <button class="seg-btn" data-m="fit">Fit</button>
+            </div>
+          </div>
+          <div class="ctrl"><span class="cl">Background</span>
+            <div class="colors" id="cols">
+              <div class="sw on" style="background:#D3D5D7" data-c="#D3D5D7"></div>
+              <div class="sw" style="background:#fff" data-c="#ffffff"></div>
+              <div class="sw" style="background:#111" data-c="#111111"></div>
+              <div class="sw" style="background:#1a1a2e" data-c="#1a1a2e"></div>
+              <div class="sw" style="background:#0f3460" data-c="#0f3460"></div>
+              <div class="sw" style="background:#7c3aed" data-c="#7c3aed"></div>
+              <div class="sw" style="background:#e63946" data-c="#e63946"></div>
+              <div class="sw" style="background:#2d6a4f" data-c="#2d6a4f"></div>
+              <div class="sw cx"><input type="color" id="cc" value="#f4a261"></div>
+            </div>
+          </div>
+          <div class="ctrl"><span class="cl">Logo size</span>
+            <div class="sl"><input type="range" id="ss" min="20" max="100" value="80" step="1"><span class="sv" id="ssv">80%</span></div>
+          </div>
+          <div class="ctrl"><span class="cl">Offset Y</span>
+            <div class="sl"><input type="range" id="so" min="-30" max="30" value="0" step="1"><span class="sv" id="sov">0px</span></div>
+          </div>
+          <div class="ctrl"><span class="cl">BG threshold</span>
+            <div class="sl"><input type="range" id="st" min="5" max="120" value="45" step="1"><span class="sv" id="stv">45</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const CW=182,CH=132,PAD=14; // card canvas size, padding around logo zone
+const FW=CW-PAD*2,FH=CH-PAD*2,FX=PAD,FY=PAD;
+const MW=108,MH=80,MPAD=8,MFW=MW-MPAD*2,MFH=MH-MPAD*2,MFX=MPAD,MFY=MPAD;
+const S={files:[],zoom:1,sel:-1,mpOpen:false,mp:{mode:'cover',bg:'#D3D5D7',scale:85,offY:0,thresh:45}};
+
+/* ── drag ── */
+let dc=0;const dov=document.getElementById('dov');
+document.addEventListener('dragenter',e=>{e.preventDefault();if(++dc===1)dov.classList.add('show')});
+document.addEventListener('dragleave',()=>{if(--dc<=0){dc=0;dov.classList.remove('show')}});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{e.preventDefault();dc=0;dov.classList.remove('show');addFiles([...e.dataTransfer.files])});
+const dz=document.getElementById('dz');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');addFiles([...e.dataTransfer.files])});
+document.getElementById('fi').addEventListener('change',e=>{addFiles([...e.target.files]);e.target.value=''});
+document.getElementById('fi2').addEventListener('change',e=>{addFiles([...e.target.files]);e.target.value=''});
+
+function addFiles(fs){
+  fs.filter(f=>f.type.startsWith('image/')).forEach(f=>{
+    const url=URL.createObjectURL(f);
+    const img=new Image();
+    img.onload=()=>{
+      const item={img,name:f.name,url,w:img.naturalWidth,h:img.naturalHeight,result:null,proc:true};
+      S.files.push(item);const idx=S.files.length-1;
+      renderGrid();setTimeout(()=>analyse(idx),20);
+    };
+    img.src=url;
+  });
+}
+
+/* ══════════════════════════════════════════
+   ANALYSIS ENGINE
+   Types:
+   A) PHOTO      — real photo, no bg uniformity, high variance → cover crop
+   B) CARD ART   — full-bleed artwork (Nitro card PNG) → cover crop
+   C) LOGO       — logo on solid/transparent bg → extract, center, fill bg with dominant color
+══════════════════════════════════════════ */
+function analyse(idx){
+  const item=S.files[idx];if(!item)return;
+  const iw=item.w,ih=item.h;
+  const sc=Math.min(1,320/Math.max(iw,ih));
+  const sw=Math.round(iw*sc),sh=Math.round(ih*sc);
+  const off=new OffscreenCanvas(sw,sh);
+  const oc=off.getContext('2d');oc.drawImage(item.img,0,0,sw,sh);
+  let id, d;
+  try {
+    id=oc.getImageData(0,0,sw,sh); d=id.data;
+  } catch(e) {
+    // CORS-tainted canvas — use cover mode with a neutral bg, skip pixel analysis
+    item.result={mode:'logo',bg:'#D3D5D7',scale:85,offY:0,thresh:45,
+      note:'logo · no-cors',manual:false,logoBbox:null,aiMode:null};
+    detectLogoBboxAI(item,idx);
+    return;
+  }
+  const total=d.length/4;
+
+  // Transparency
+  let transPx=0;
+  for(let i=3;i<d.length;i+=4){if(d[i]<128)transPx++}
+  const hasAlpha=transPx>0;
+  const alphaCov=transPx/total;
+
+  // Corner sampling (5x5 patch average for robustness)
+  function patchAvg(cx,cy,r=3){
+    let rs=0,gs=0,bs=0,n=0;
+    for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+      const x=Math.max(0,Math.min(sw-1,cx+dx)),y=Math.max(0,Math.min(sh-1,cy+dy));
+      const i=(y*sw+x)*4;if(d[i+3]>100){rs+=d[i];gs+=d[i+1];bs+=d[i+2];n++}
+    }
+    return n>0?[Math.round(rs/n),Math.round(gs/n),Math.round(bs/n)]:[0,0,0];
+  }
+  const c0=patchAvg(0,0),c1=patchAvg(sw-1,0),c2=patchAvg(0,sh-1),c3=patchAvg(sw-1,sh-1);
+  const cr=Math.round((c0[0]+c1[0]+c2[0]+c3[0])/4);
+  const cg=Math.round((c0[1]+c1[1]+c2[1]+c3[1])/4);
+  const cb=Math.round((c0[2]+c1[2]+c2[2]+c3[2])/4);
+  const cornerHex=toHex(cr,cg,cb);
+
+  // BG coverage — pixels matching corner color
+  let bgN=0;
+  for(let i=0;i<d.length;i+=4){
+    if(d[i+3]>50&&colorDist(d[i],d[i+1],d[i+2],cr,cg,cb)<110)bgN++;
+  }
+  const bgCov=bgN/total;
+
+  // Content bbox (pixels that are NOT background)
+  let x0=sw,x1=0,y0=sh,y1=0;
+  for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){
+    const i=(y*sw+x)*4;
+    const isFg=d[i+3]>50&&colorDist(d[i],d[i+1],d[i+2],cr,cg,cb)>60;
+    if(isFg){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
+  }
+  if(x1<=x0){x0=0;x1=sw-1;y0=0;y1=sh-1}
+  const cntW=x1-x0+1,cntH=y1-y0+1;
+  const fillX=cntW/sw,fillY=cntH/sh;
+  const contentFill=fillX*fillY; // fraction of image covered by content
+
+  // Spatial variance
+  let varSum=0,varN=0;
+  const vstep=Math.max(4,Math.floor(total/600))*4;
+  for(let i=0;i<d.length-vstep;i+=vstep){
+    varSum+=colorDist(d[i],d[i+1],d[i+2],d[i+vstep],d[i+vstep+1],d[i+vstep+2]);varN++;
+  }
+  const variance=varN>0?varSum/varN:0;
+
+  // Dominant color of the background (for filling)
+  // Use most frequent color cluster among bg pixels
+  const bgColor=dominantBgColor(d,sw,sh,cr,cg,cb);
+
+  /* ── DECISION ── */
+  let mode,bg,note,scale=85;
+
+  const isPhoto=!hasAlpha&&variance>16&&bgCov<0.07&&contentFill>0.7;
+  // Card art: content fills most of image (Nitro vertical card, full-bleed artwork)
+  const isCardArt=(hasAlpha&&contentFill>0.5&&alphaCov<0.40)||
+                  (!hasAlpha&&contentFill>0.65&&bgCov<0.10);
+
+  if(isPhoto){
+    mode='cover';bg=cornerHex;note='photo · cover';
+  } else if(isCardArt){
+    mode='cover';bg=cornerHex;note='card art · cover';
+  } else {
+    // LOGO MODE: extract logo, center it, fill surrounding with bg color
+    mode='logo';
+    bg=bgColor; // use actual bg color from the image
+    scale=80;
+    note='logo · '+cornerHex;
+  }
+
+  item.result={mode,bg,scale,offY:0,thresh:45,note,manual:false,logoBbox:null,aiMode:null};
+
+  // Always run AI analysis — it handles both logo extraction AND photo text-strip removal
+  detectLogoBboxAI(item,idx);
+}
+
+/* Get most representative bg color (avoid pure corner, sample more broadly) */
+function dominantBgColor(d,sw,sh,cr,cg,cb){
+  // Sample pixels near edges (top/bottom strips) for bg color
+  let rs=0,gs=0,bs=0,n=0;
+  for(let x=0;x<sw;x++){
+    // top strip
+    for(let y=0;y<Math.min(6,sh);y++){
+      const i=(y*sw+x)*4;if(d[i+3]>50){rs+=d[i];gs+=d[i+1];bs+=d[i+2];n++}
+    }
+    // bottom strip
+    for(let y=Math.max(0,sh-6);y<sh;y++){
+      const i=(y*sw+x)*4;if(d[i+3]>50){rs+=d[i];gs+=d[i+1];bs+=d[i+2];n++}
+    }
+  }
+  if(n>0) return toHex(Math.round(rs/n),Math.round(gs/n),Math.round(bs/n));
+  return toHex(cr,cg,cb);
+}
+
+/* ══════════════════════════════════════════
+   DRAW ENGINE
+══════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════
+   AI LOGO DETECTION via Anthropic API
+   Sends image to Claude, gets back logo bbox
+   as fractions {x,y,w,h} of image dimensions
+══════════════════════════════════════════ */
+async function detectLogoBboxAI(item,idx){
+  try{
+    const canvas=new OffscreenCanvas(item.w,item.h);
+    const ctx=canvas.getContext('2d');ctx.drawImage(item.img,0,0);
+    const blob=await canvas.convertToBlob({type:'image/jpeg',quality:0.88});
+    const b64=await new Promise(res=>{
+      const reader=new FileReader();
+      reader.onload=e=>res(e.target.result.split(',')[1]);
+      reader.readAsDataURL(blob);
+    });
+
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:400,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
+          {type:'text',text:`Analyze this gift card image carefully.
+
+Your job: return a JSON with TWO pieces of info:
+1. "type": either "logo_on_bg" (logo/brand mark on a solid or simple background) or "photo_with_text" (a photo/artwork with text overlays) or "full_art" (artwork with no removable text)
+2. "bbox": the bounding box of ONLY the primary visual element to keep, as fractions 0.0-1.0 of image size
+
+For "logo_on_bg": bbox = tight box around ONLY the main logo/brand mark symbol. EXCLUDE completely:
+  - Any text saying "eGift Card", "Gift Card", "gift card"
+  - Any tagline or slogan text
+  - Any secondary brand/provider name (like "Apparel Group", "GCodes", "INSTANT REWARDS")
+  - Any text that is NOT the brand logo itself
+  
+For "photo_with_text": bbox = the clean photo area, excluding text banner strips at top/bottom edges
+
+For "full_art": bbox = {x:0, y:0, w:1, h:1}
+
+Examples:
+- Levi's card with logo + "eGift Card" text + "Apparel Group" footer → type:"logo_on_bg", bbox around just the Levi's batwing logo
+- Hotel photo with "Hotel & Travel" title + "GCodes" footer → type:"photo_with_text", bbox is the photo strip between text areas
+
+Return ONLY valid JSON, no explanation:
+{"type":"logo_on_bg","bbox":{"x":0.15,"y":0.1,"w":0.7,"h":0.35}}`}
+        ]}]
+      })
+    });
+
+    const data=await resp.json();
+    const text=data.content?.[0]?.text||'';
+    console.log('AI response for',item.name,':',text);
+    
+    // parse JSON - handle nested structure
+    try{
+      const parsed=JSON.parse(text.replace(/```json|```/g,'').trim());
+      const bbox=parsed.bbox||parsed;
+      const aiType=parsed.type||'logo_on_bg';
+      
+      if(bbox&&bbox.x>=0&&bbox.y>=0&&bbox.w>0&&bbox.h>0){
+        item.result.logoBbox=bbox;
+        item.result.aiMode=aiType==='photo_with_text'?'photo':'logo';
+        item.result.note='AI · '+(aiType==='photo_with_text'?'photo crop':'logo only');
+        console.log('AI bbox applied:',bbox,'mode:',item.result.aiMode);
+      }
+    }catch(e2){
+      // fallback: try to extract any JSON object
+      const m=text.match(/\{[^{}]*"bbox"[^{}]*\{([^}]+)\}/);
+      if(m){
+        try{
+          const inner=JSON.parse('{'+m[1]+'}');
+          if(inner.x>=0&&inner.w>0){
+            item.result.logoBbox=inner;
+            item.result.aiMode='logo';
+            item.result.note='AI · logo extracted';
+          }
+        }catch(e3){}
+      }
+    }
+  }catch(e){
+    console.warn('AI analysis failed:',e);
+  }
+  item.proc=false;
+  renderGrid();updateCanvas(idx);
+  document.getElementById('tinfo').textContent=`${S.files.length} card${S.files.length!==1?'s':''}`;
+}
+
+function draw(canvas,item,W,H,fw,fh,fx,fy,ov){
+  const r=ov||item.result;if(!r)return;
+  const ctx=canvas.getContext('2d');ctx.clearRect(0,0,W,H);
+  const img=item.img,sc=r.scale/100;
+
+  function fillBg(color){ctx.fillStyle=color||r.bg;ctx.fillRect(0,0,W,H)}
+
+  if(r.mode==='cover'){
+    const iw2=img.naturalWidth,ih2=img.naturalHeight;
+    // If AI found a clean zone, crop to that zone first, then cover-fill card
+    if(r.logoBbox){
+      const lb=r.logoBbox;
+      const srcX=Math.round(lb.x*iw2),srcY=Math.round(lb.y*ih2);
+      const srcW=Math.round(lb.w*iw2),srcH=Math.round(lb.h*ih2);
+      const zR=srcW/srcH,cR=W/H;
+      let csw,csh,csx,csy;
+      if(zR>cR){csh=srcH;csw=csh*cR;csx=srcX+(srcW-csw)/2;csy=srcY}
+      else{csw=srcW;csh=csw/cR;csx=srcX;csy=srcY+(srcH-csh)/2}
+      ctx.drawImage(img,csx,csy,csw,csh,0,0,W,H);
+    } else {
+      // Standard cover crop
+      const iR=iw2/ih2,cR=W/H;
+      let sw2,sh2,sx,sy;
+      if(iR>cR){sh2=ih2;sw2=sh2*cR;sx=(iw2-sw2)/2;sy=0}
+      else{sw2=iw2;sh2=sw2/cR;sx=0;sy=(ih2-sh2)/2}
+      ctx.drawImage(img,sx,sy,sw2,sh2,0,0,W,H);
+    }
+
+  } else if(r.mode==='logo'){
+    fillBg();
+    const iw=img.naturalWidth,ih=img.naturalHeight;
+
+    if(r.logoBbox){
+      const lb=r.logoBbox;
+      const srcX=Math.round(lb.x*iw), srcY=Math.round(lb.y*ih);
+      const srcW=Math.round(lb.w*iw), srcH=Math.round(lb.h*ih);
+
+      if(r.aiMode==='photo'){
+        // Photo: cover-crop the clean zone into full card
+        const zR=srcW/srcH, cR=W/H;
+        let csw,csh,csx,csy;
+        if(zR>cR){csh=srcH;csw=csh*cR;csx=srcX+(srcW-csw)/2;csy=srcY}
+        else{csw=srcW;csh=csw/cR;csx=srcX;csy=srcY+(srcH-csh)/2}
+        ctx.drawImage(img,csx,csy,csw,csh,0,0,W,H);
+      } else {
+        // Logo: fill bg, then draw ONLY the cropped logo bbox centered
+        // The crop itself removes all text outside the bbox
+        const sf=Math.min(fw*sc/srcW, fh*sc/srcH);
+        const dw=srcW*sf, dh=srcH*sf;
+        const dx=fx+(fw-dw)/2, dy=fy+(fh-dh)/2+(r.offY||0);
+        ctx.drawImage(img, srcX,srcY,srcW,srcH, dx,dy,dw,dh);
+      }
+
+    } else {
+      // ── Pixel-based bg removal fallback ──
+      const tmpOff=new OffscreenCanvas(iw,ih);
+      const tmpCtx=tmpOff.getContext('2d');tmpCtx.drawImage(img,0,0);
+      const tmpD=tmpCtx.getImageData(0,0,iw,ih).data;
+      function ipx(x,y){const i=(y*iw+x)*4;return[tmpD[i],tmpD[i+1],tmpD[i+2],tmpD[i+3]]}
+      const corners=[ipx(0,0),ipx(iw-1,0),ipx(0,ih-1),ipx(iw-1,ih-1)];
+      const icr=Math.round(corners.reduce((s,c)=>s+c[0],0)/4);
+      const icg=Math.round(corners.reduce((s,c)=>s+c[1],0)/4);
+      const icb=Math.round(corners.reduce((s,c)=>s+c[2],0)/4);
+      const logoOff=new OffscreenCanvas(iw,ih);
+      const logoCtx=logoOff.getContext('2d');logoCtx.drawImage(img,0,0);
+      let logoId,ld;
+      try{ logoId=logoCtx.getImageData(0,0,iw,ih); ld=logoId.data; }
+      catch(e){
+        // Tainted — just draw the image scaled to fit, no bg removal
+        const sf=Math.min(fw*sc/iw,fh*sc/ih);
+        const dw=iw*sf,dh=ih*sf;
+        ctx.drawImage(img,fx+(fw-dw)/2,fy+(fh-dh)/2+(r.offY||0),dw,dh);
+        return;
+      }
+      const thresh=r.thresh||45;
+      for(let i=0;i<ld.length;i+=4){
+        if(ld[i+3]<10)continue;
+        if(colorDist(ld[i],ld[i+1],ld[i+2],icr,icg,icb)<thresh*3)ld[i+3]=0;
+      }
+      logoCtx.putImageData(logoId,0,0);
+      const bb=getBBox(logoOff);
+      if(!bb){ctx.drawImage(img,fx,fy,fw,fh);return;}
+      const sf=Math.min(fw*sc/bb.w,fh*sc/bb.h);
+      const dw=bb.w*sf,dh=bb.h*sf;
+      ctx.drawImage(logoOff,bb.x,bb.y,bb.w,bb.h,
+        fx+(fw-dw)/2,fy+(fh-dh)/2+(r.offY||0),dw,dh);
+    }
+
+  } else if(r.mode==='blur'){
+    fillBg();
+    ctx.save();ctx.filter='blur(16px) saturate(1.2) brightness(0.7)';
+    const a=img.naturalWidth/img.naturalHeight;
+    let bw=W,bh=W/a;if(bh<H){bh=H;bw=H*a}
+    ctx.drawImage(img,(W-bw)/2,(H-bh)/2,bw,bh);
+    ctx.filter='none';ctx.restore();
+    // tint with bg color
+    ctx.fillStyle=hexA(r.bg,.35);ctx.fillRect(0,0,W,H);
+    const sf=Math.min(fw*sc/img.naturalWidth,fh*sc/img.naturalHeight);
+    const dw=img.naturalWidth*sf,dh=img.naturalHeight*sf;
+    ctx.drawImage(img,fx+(fw-dw)/2,fy+(fh-dh)/2+(r.offY||0),dw,dh);
+
+  } else {
+    // fit
+    fillBg();
+    const sf=Math.min(W/img.naturalWidth,H/img.naturalHeight)*sc;
+    const dw=img.naturalWidth*sf,dh=img.naturalHeight*sf;
+    ctx.drawImage(img,(W-dw)/2,(H-dh)/2+(r.offY||0),dw,dh);
+  }
+}
+
+function updateCanvas(idx){
+  const item=S.files[idx];if(!item?.result)return;
+  const slot=document.getElementById('s'+idx);if(!slot)return;
+  const cv=slot.querySelector('.gc-canvas');if(cv)draw(cv,item,CW,CH,FW,FH,FX,FY,null);
+  const b=slot.querySelector('.badge');
+  if(b){b.className='badge '+(item.result.manual?'b-manual':'b-auto');b.textContent=item.result.manual?'manual':item.result.note}
+}
+
+/* ── RENDER GRID ── */
+function renderGrid(){
+  const cg=document.getElementById('cg'),emp=document.getElementById('emp');
+  document.getElementById('qc').textContent=S.files.length;
+  emp.style.display=S.files.length?'none':'';
+  cg.style.display=S.files.length?'':'none';
+  const ql=document.getElementById('ql');ql.innerHTML='';
+  S.files.forEach((f,i)=>{
+    const el=document.createElement('div');
+    el.className='q-item'+(i===S.sel?' sel':'');
+    el.innerHTML=`<img class="q-thumb" src="${f.url}"><div class="q-info"><div class="q-name">${f.name}</div><div class="q-note">${f.proc?'analysing…':(f.result?.note||'—')}</div></div><button class="q-del">×</button>`;
+    el.addEventListener('click',e=>{if(!e.target.closest('.q-del'))selectCard(i)});
+    el.querySelector('.q-del').addEventListener('click',e=>{e.stopPropagation();S.files.splice(i,1);if(S.sel>=S.files.length)S.sel=S.files.length-1;rebuildSlots()});
+    ql.appendChild(el);
+  });
+  while(cg.children.length>S.files.length)cg.removeChild(cg.lastChild);
+  S.files.forEach((item,i)=>{
+    if(!document.getElementById('s'+i))cg.appendChild(mkSlot(i));
+    const slot=document.getElementById('s'+i);
+    slot.querySelector('.slot-name').textContent=item.name;
+    slot.querySelector('.gift-card').classList.toggle('sel',i===S.sel);
+    const b=slot.querySelector('.badge');
+    if(item.proc){b.className='badge b-proc';b.textContent='analysing…'}
+    else if(item.result){b.className='badge '+(item.result.manual?'b-manual':'b-auto');b.textContent=item.result.manual?'manual':item.result.note}
+  });
+}
+function mkSlot(i){
+  const w=document.createElement('div');w.className='card-slot';w.id='s'+i;
+  w.innerHTML=`
+    <div class="gift-card">
+      <div class="gc-img-wrap">
+        <div class="gc-img-box">
+          <canvas class="gc-canvas" width="182" height="132"></canvas>
+        </div>
+      </div>
+      <div class="gc-details"><p class="gc-title">Steam Gift —<br>Card 200</p></div>
+      <div class="gc-buttons">
+        <button class="gc-buy">Buy Now</button>
+        <button class="gc-fav">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 12.5C7 12.5 1 8.8 1 5 1 3.2 2.4 1.8 4.1 1.8c1.1 0 2 .6 2.5 1.5L7 4l.4-.7C7.9 2.4 8.8 1.8 9.9 1.8 11.6 1.8 13 3.2 13 5c0 3.8-6 7.5-6 7.5Z"
+              stroke="#A0A3A7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="slot-meta">
+      <div class="slot-name"></div>
+      <span class="badge b-proc">analysing…</span>
+    </div>
+    <div class="slot-actions">
+      <button class="slot-action-btn btn-retry" data-idx="${i}">↻ Try another</button>
+    </div>`;
+  w.querySelector('.gift-card').addEventListener('click',()=>selectCard(i));
+  w.querySelector('.btn-retry').addEventListener('click',e=>{e.stopPropagation();openAltPicker(i);});
+  return w;
+}
+function rebuildSlots(){const cg=document.getElementById('cg');cg.innerHTML='';S.files.forEach((_,i)=>{cg.appendChild(mkSlot(i));updateCanvas(i)});renderGrid()}
+
+/* ── SELECT / MANUAL ── */
+function selectCard(idx){
+  S.sel=idx;renderGrid();
+  const item=S.files[idx];if(!item?.result)return;
+  document.getElementById('mpf').textContent=item.name;
+  syncMp(item.result);setMp(true);drawMini();
+}
+function setMp(on){S.mpOpen=on;document.getElementById('mpw').classList.toggle('open',on)}
+document.getElementById('mph').addEventListener('click',()=>setMp(!S.mpOpen));
+function syncMp(r){
+  S.mp={mode:r.mode,bg:r.bg,scale:r.scale,offY:r.offY||0,thresh:r.thresh||45};
+  document.querySelectorAll('#seg .seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.m===S.mp.mode));
+  document.getElementById('ss').value=S.mp.scale;document.getElementById('ssv').textContent=S.mp.scale+'%';
+  document.getElementById('so').value=S.mp.offY;document.getElementById('sov').textContent=S.mp.offY+'px';
+  document.getElementById('st').value=S.mp.thresh;document.getElementById('stv').textContent=S.mp.thresh;
+  document.querySelectorAll('#cols .sw[data-c]').forEach(sw=>sw.classList.toggle('on',sw.dataset.c===S.mp.bg));
+}
+function drawMini(){
+  const item=S.files[S.sel];if(!item?.result)return;
+  draw(document.getElementById('mc'),item,MW,MH,MFW,MFH,MFX,MFY,{...S.mp});
+}
+document.querySelectorAll('#seg .seg-btn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#seg .seg-btn').forEach(x=>x.classList.remove('on'));b.classList.add('on');S.mp.mode=b.dataset.m;drawMini();
+}));
+document.querySelectorAll('#cols .sw[data-c]').forEach(sw=>sw.addEventListener('click',()=>{
+  document.querySelectorAll('#cols .sw').forEach(x=>x.classList.remove('on'));sw.classList.add('on');S.mp.bg=sw.dataset.c;drawMini();
+}));
+document.getElementById('cc').addEventListener('input',e=>{
+  document.querySelectorAll('#cols .sw').forEach(x=>x.classList.remove('on'));e.target.closest('.sw').classList.add('on');S.mp.bg=e.target.value;drawMini();
+});
+['ss','so','st'].forEach((id,j)=>{
+  const vals=['ssv','sov','stv'],sfx=['%','px',''];
+  document.getElementById(id).addEventListener('input',e=>{
+    S.mp[['scale','offY','thresh'][j]]=parseFloat(e.target.value);
+    document.getElementById(vals[j]).textContent=e.target.value+sfx[j];drawMini();
+  });
+});
+document.getElementById('mpa').addEventListener('click',()=>{
+  if(S.sel<0)return;
+  const item=S.files[S.sel];
+  item.result={...item.result,...S.mp,manual:true,note:S.mp.mode};
+  updateCanvas(S.sel);renderGrid();
+});
+
+/* ── HELPERS ── */
+function colorDist(r1,g1,b1,r2,g2,b2){return Math.abs(r1-r2)+Math.abs(g1-g2)+Math.abs(b1-b2)}
+function getBBox(off){
+  const oc=off.getContext('2d');const d=oc.getImageData(0,0,off.width,off.height).data;
+  let x0=off.width,x1=0,y0=off.height,y1=0;
+  for(let y=0;y<off.height;y++)for(let x=0;x<off.width;x++){
+    if(d[(y*off.width+x)*4+3]>20){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
+  }
+  return x1>x0?{x:x0,y:y0,w:x1-x0+1,h:y1-y0+1}:null;
+}
+function toHex(...v){return'#'+v.map(x=>Math.min(255,Math.max(0,Math.round(x))).toString(16).padStart(2,'0')).join('')}
+function hexA(h,a){return`rgba(${parseInt(h.slice(1,3),16)||0},${parseInt(h.slice(3,5),16)||0},${parseInt(h.slice(5,7),16)||0},${a})`}
+
+/* ── ZOOM ── */
+document.getElementById('zi').onclick=()=>setZ(S.zoom+.25);
+document.getElementById('zo').onclick=()=>setZ(S.zoom-.25);
+function setZ(z){
+  S.zoom=Math.min(3,Math.max(.4,z));
+  document.getElementById('zv').textContent=Math.round(S.zoom*100)+'%';
+  const g=document.getElementById('cg');
+  g.style.transform=`scale(${S.zoom})`;g.style.transformOrigin='top center';
+  g.style.marginBottom=S.zoom>1?`${(S.zoom-1)*320}px`:'0';
+}
+
+/* ══════════════════════════════════════════
+   GENERATOR — categories + photos
+   Uses Unsplash Source API (CORS-enabled,
+   no key required, landscape photos)
+══════════════════════════════════════════ */
+
+// Category definitions with curated search terms
+const CATEGORIES = [
+  {id:'travel',      label:'✈ Travel',         queries:['travel','landscape','scenic mountains','ocean coast'],       bg:'#0f2030'},
+  {id:'hotel',       label:'🏨 Hotel',          queries:['luxury hotel','resort pool','hotel lobby','villa'],          bg:'#1a1208'},
+  {id:'esim',        label:'📱 eSIM',           queries:['city skyline night','technology','smartphone cityscape'],    bg:'#0d1b2a'},
+  {id:'restaurant',  label:'🍽 Dining',         queries:['restaurant interior','food fine dining','table dinner'],     bg:'#1a0a00'},
+  {id:'spa',         label:'💆 Beauty & Spa',   queries:['spa wellness','zen garden','candle bath','luxury spa'],      bg:'#180d18'},
+  {id:'shopping',    label:'🛍 Shopping',       queries:['fashion store','shopping mall','boutique clothes'],          bg:'#1a1a2e'},
+  {id:'gaming',      label:'🎮 Gaming',         queries:['gaming setup','neon lights','esports arena'],               bg:'#0a0a1a'},
+  {id:'streaming',   label:'🎬 Streaming',      queries:['cinema popcorn','theater screen','film reel'],              bg:'#1a0000'},
+  {id:'fitness',     label:'💪 Fitness',        queries:['gym workout','fitness sport','running athlete'],            bg:'#0a1a0a'},
+  {id:'food',        label:'🛒 Grocery',        queries:['fresh vegetables','market food','supermarket'],             bg:'#0a1a00'},
+  {id:'fashion',     label:'👗 Fashion',        queries:['fashion model','clothing style','luxury fashion'],          bg:'#1a1218'},
+  {id:'experience',  label:'🎯 Experience',     queries:['adventure outdoor','hot air balloon','extreme sport'],      bg:'#1a0f00'},
+  {id:'kids',        label:'🧸 Kids',           queries:['playground children','colorful toys','happy kids'],         bg:'#001a1a'},
+  {id:'coffee',      label:'☕ Coffee',         queries:['coffee shop','barista espresso','cafe morning'],            bg:'#1a0d00'},
+  {id:'airlines',    label:'✈ Airlines',        queries:['airport terminal','airplane sky','aviation'],               bg:'#001020'},
+];
+
+let selectedCat = CATEGORIES[0];
+let genCountVal  = 6;
+
+/* Build category pill buttons */
+function buildCatGrid(){
+  const grid = document.getElementById('catGrid');
+  CATEGORIES.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = 'cat-btn' + (cat.id === selectedCat.id ? ' on' : '');
+    btn.textContent = cat.label;
+    btn.addEventListener('click', () => {
+      selectedCat = cat;
+      document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+    });
+    grid.appendChild(btn);
+  });
+}
+buildCatGrid();
+
+/* Toggle collapse */
+document.getElementById('genToggle').addEventListener('click', () => {
+  document.getElementById('genBody').classList.toggle('open');
+  document.getElementById('genChev').classList.toggle('open');
+});
+document.getElementById('genBody').classList.add('open');
+document.getElementById('genChev').classList.add('open');
+
+/* Count slider */
+document.getElementById('genCount').addEventListener('input', e => {
+  genCountVal = parseInt(e.target.value);
+  document.getElementById('genCountVal').textContent = genCountVal;
+});
+
+/* ── MAIN GENERATE HANDLER ── */
+document.getElementById('genBtn').addEventListener('click', async () => {
+  const btn       = document.getElementById('genBtn');
+  const progWrap  = document.getElementById('genProgress');
+  const fill      = document.getElementById('genProgFill');
+  const lbl       = document.getElementById('genProgLabel');
+  const count     = genCountVal;
+  const cat       = selectedCat;
+
+  btn.disabled = true;
+  document.getElementById('genBtnTxt').textContent = 'Loading…';
+  progWrap.style.display = 'block';
+  fill.style.width = '0%';
+  lbl.textContent  = '0 / ' + count;
+
+  let done = 0;
+
+  for (let i = 0; i < count; i++) {
+    /* Rotate through query terms for variety */
+    const q    = cat.queries[i % cat.queries.length];
+    /* Each unique seed gives a different photo; offset by category so categories differ */
+    const seed = (cat.id.charCodeAt(0) * 1000 + i * 97 + Math.floor(Math.random() * 50)) % 1084;
+    /* Picsum: CORS-enabled, landscape, deterministic by ID */
+    const url  = `https://picsum.photos/seed/${seed}/1200/800`;
+
+    await loadGeneratedCard(url, cat, i);
+
+    done++;
+    fill.style.width = Math.round(done / count * 100) + '%';
+    lbl.textContent  = done + ' / ' + count;
+  }
+
+  btn.disabled = false;
+  document.getElementById('genBtnTxt').textContent = '✦ Generate cards';
+  progWrap.style.display = 'none';
+  document.getElementById('tinfo').textContent =
+    `${S.files.length} card${S.files.length !== 1 ? 's' : ''}`;
+});
+
+/* Load one photo and create a card entry */
+async function loadGeneratedCard(url, cat, idx) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous'; // picsum supports CORS
+    img.onload = () => {
+      const name = `${cat.id}_${String(idx + 1).padStart(3, '0')}.jpg`;
+      const item = {
+        img,
+        name,
+        url,                        // keeps original URL for queue thumbnail
+        w: img.naturalWidth,
+        h: img.naturalHeight,
+        result: {
+          mode: 'cover',
+          bg: cat.bg,
+          scale: 100,
+          offY: 0,
+          thresh: 45,
+          note: 'generated · ' + cat.label.replace(/^\S+\s/, ''),
+          manual: false,
+          logoBbox: null,
+          aiMode: 'photo'
+        },
+        proc: false
+      };
+
+      S.files.push(item);
+      const fileIdx = S.files.length - 1;
+
+      /* Render the grid row first (creates the canvas DOM element) */
+      renderGrid();
+
+      /* Then draw immediately — no analysis needed, it's a pure photo */
+      const slot = document.getElementById('s' + fileIdx);
+      if (slot) {
+        const cv = slot.querySelector('.gc-canvas');
+        if (cv) draw(cv, item, CW, CH, FW, FH, FX, FY, null);
+        const b = slot.querySelector('.badge');
+        if (b) { b.className = 'badge b-auto'; b.textContent = item.result.note; }
+      }
+      resolve();
+    };
+    img.onerror = () => {
+      console.warn('Failed to load:', url);
+      resolve(); // skip silently
+    };
+    img.src = url;
+  });
+}
+
+/* ── EXPORT at 3× — no rounded corners, full quality ── */
+document.getElementById('bexp').addEventListener('click',async()=>{
+  const SCALE=3;
+  const EW=CW*SCALE,EH=CH*SCALE;
+  const EFW=FW*SCALE,EFH=FH*SCALE,EFX=FX*SCALE,EFY=FY*SCALE;
+  for(let i=0;i<S.files.length;i++){
+    const item=S.files[i];if(!item?.result)continue;
+    const ec=document.createElement('canvas');
+    ec.width=EW;ec.height=EH;
+    drawExport(ec,item,EW,EH,EFW,EFH,EFX,EFY,null,SCALE);
+    await new Promise(r=>setTimeout(r,50));
+    const a=document.createElement('a');
+    a.download='card_'+item.name.replace(/\.[^.]+$/,'')+'.png';
+    a.href=ec.toDataURL('image/png');a.click();
+    await new Promise(r=>setTimeout(r,200));
+  }
+});
+
+/* Same as draw() but: no roundRect (straight corners), all coords ×SCALE */
+function drawExport(canvas,item,W,H,fw,fh,fx,fy,ov,SCALE){
+  const r=ov||item.result;if(!r)return;
+  const ctx=canvas.getContext('2d');ctx.clearRect(0,0,W,H);
+  const img=item.img,sc=r.scale/100;
+
+  function fillBg(color){ctx.fillStyle=color||r.bg;ctx.fillRect(0,0,W,H)}
+
+  if(r.mode==='cover'){
+    const iw2=img.naturalWidth,ih2=img.naturalHeight;
+    if(r.logoBbox){
+      const lb=r.logoBbox;
+      const srcX=Math.round(lb.x*iw2),srcY=Math.round(lb.y*ih2);
+      const srcW=Math.round(lb.w*iw2),srcH=Math.round(lb.h*ih2);
+      const zR=srcW/srcH,cR=W/H;
+      let csw,csh,csx,csy;
+      if(zR>cR){csh=srcH;csw=csh*cR;csx=srcX+(srcW-csw)/2;csy=srcY}
+      else{csw=srcW;csh=csw/cR;csx=srcX;csy=srcY+(srcH-csh)/2}
+      ctx.drawImage(img,csx,csy,csw,csh,0,0,W,H);
+    } else {
+      const iR=iw2/ih2,cR=W/H;
+      let sw2,sh2,sx,sy;
+      if(iR>cR){sh2=ih2;sw2=sh2*cR;sx=(iw2-sw2)/2;sy=0}
+      else{sw2=iw2;sh2=sw2/cR;sx=0;sy=(ih2-sh2)/2}
+      ctx.drawImage(img,sx,sy,sw2,sh2,0,0,W,H);
+    }
+
+  }else if(r.mode==='logo'){
+    fillBg();
+    const iw=img.naturalWidth,ih=img.naturalHeight;
+    if(r.logoBbox){
+      const lb=r.logoBbox;
+      const srcX=Math.round(lb.x*iw),srcY=Math.round(lb.y*ih);
+      const srcW=Math.round(lb.w*iw),srcH=Math.round(lb.h*ih);
+      if(r.aiMode==='photo'){
+        const zR=srcW/srcH,cR=W/H;
+        let csw,csh,csx,csy;
+        if(zR>cR){csh=srcH;csw=csh*cR;csx=srcX+(srcW-csw)/2;csy=srcY}
+        else{csw=srcW;csh=csw/cR;csx=srcX;csy=srcY+(srcH-csh)/2}
+        ctx.drawImage(img,csx,csy,csw,csh,0,0,W,H);
+      } else {
+        // Fit: centered on bg fill
+        const sf=Math.min(fw*sc/srcW,fh*sc/srcH);
+        const dw=srcW*sf,dh=srcH*sf;
+        ctx.drawImage(img,srcX,srcY,srcW,srcH,
+          fx+(fw-dw)/2,fy+(fh-dh)/2+(r.offY||0)*SCALE,dw,dh);
+      }
+    } else {
+      const tmpOff=new OffscreenCanvas(iw,ih);
+      const tmpCtx=tmpOff.getContext('2d');tmpCtx.drawImage(img,0,0);
+      const tmpD=tmpCtx.getImageData(0,0,iw,ih).data;
+      function ipx(x,y){const i=(y*iw+x)*4;return[tmpD[i],tmpD[i+1],tmpD[i+2],tmpD[i+3]]}
+      const corners=[ipx(0,0),ipx(iw-1,0),ipx(0,ih-1),ipx(iw-1,ih-1)];
+      const icr=Math.round(corners.reduce((s,c)=>s+c[0],0)/4);
+      const icg=Math.round(corners.reduce((s,c)=>s+c[1],0)/4);
+      const icb=Math.round(corners.reduce((s,c)=>s+c[2],0)/4);
+      const logoOff=new OffscreenCanvas(iw,ih);
+      const logoCtx=logoOff.getContext('2d');logoCtx.drawImage(img,0,0);
+      let logoId,ld;
+      try{ logoId=logoCtx.getImageData(0,0,iw,ih); ld=logoId.data; }
+      catch(e){
+        // Tainted — just draw the image scaled to fit, no bg removal
+        const sf=Math.min(fw*sc/iw,fh*sc/ih);
+        const dw=iw*sf,dh=ih*sf;
+        ctx.drawImage(img,fx+(fw-dw)/2,fy+(fh-dh)/2+(r.offY||0),dw,dh);
+        return;
+      }
+      const thresh=r.thresh||45;
+      for(let i=0;i<ld.length;i+=4){
+        if(ld[i+3]<10)continue;
+        if(colorDist(ld[i],ld[i+1],ld[i+2],icr,icg,icb)<thresh*3)ld[i+3]=0;
+      }
+      logoCtx.putImageData(logoId,0,0);
+      const bb=getBBox(logoOff);if(!bb){ctx.drawImage(img,fx,fy,fw,fh);return}
+      const sf=Math.min(fw*sc/bb.w,fh*sc/bb.h);
+      const dw=bb.w*sf,dh=bb.h*sf;
+      ctx.drawImage(logoOff,bb.x,bb.y,bb.w,bb.h,
+        fx+(fw-dw)/2,fy+(fh-dh)/2+(r.offY||0)*SCALE,dw,dh);
+    }
+
+  }else if(r.mode==='blur'){
+    fillBg();
+    ctx.save();ctx.filter='blur('+16*SCALE+'px) saturate(1.2) brightness(0.7)';
+    const a=img.naturalWidth/img.naturalHeight;
+    let bw=W,bh=W/a;if(bh<H){bh=H;bw=H*a}
+    ctx.drawImage(img,(W-bw)/2,(H-bh)/2,bw,bh);
+    ctx.filter='none';ctx.restore();
+    ctx.fillStyle=hexA(r.bg,.35);ctx.fillRect(0,0,W,H);
+    const sf=Math.min(fw*sc/img.naturalWidth,fh*sc/img.naturalHeight);
+    const dw=img.naturalWidth*sf,dh=img.naturalHeight*sf;
+    ctx.drawImage(img,fx+(fw-dw)/2,fy+(fh-dh)/2+(r.offY||0)*SCALE,dw,dh);
+
+  }else{
+    fillBg();
+    const sf=Math.min(W/img.naturalWidth,H/img.naturalHeight)*sc;
+    const dw=img.naturalWidth*sf,dh=img.naturalHeight*sf;
+    ctx.drawImage(img,(W-dw)/2,(H-dh)/2+(r.offY||0)*SCALE,dw,dh);
+  }
+}
+
+/* ══════════════════════════════════════════
+   BRAND IMPORT — CSV/TXT → logo search
+   Sources (fallback chain):
+   1. logo.dev API (if key provided) — best quality
+   2. AI → guesses domain → Google favicon S2
+   3. DuckDuckGo favicon API (no CORS issues)
+   4. Wikipedia/Wikimedia logo search
+══════════════════════════════════════════ */
+
+let impBrands  = [];  // [{name, domain, logoUrl, img, picked}]
+let impPicked  = new Set();
+
+/* ── toggle collapse ── */
+document.getElementById('importToggle').addEventListener('click', () => {
+  document.getElementById('importBody').classList.toggle('open');
+  document.getElementById('importChev').classList.toggle('open');
+});
+
+/* ── CSV/TXT file drop ── */
+const impDz = document.getElementById('impDz');
+impDz.addEventListener('dragover', e => { e.preventDefault(); impDz.style.borderColor='var(--ac)' });
+impDz.addEventListener('dragleave', () => { impDz.style.borderColor='' });
+impDz.addEventListener('drop', e => { e.preventDefault(); impDz.style.borderColor=''; handleImpFile(e.dataTransfer.files[0]) });
+document.getElementById('impFile').addEventListener('change', e => handleImpFile(e.target.files[0]));
+
+function handleImpFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    document.getElementById('brandInput').value = parseCSVBrands(text).join('\n');
+  };
+  reader.readAsText(file);
+}
+
+function parseCSVBrands(text) {
+  return text.split(/[\n\r,;]+/)
+    .map(s => s.replace(/^["']|["']$/g, '').trim())
+    .filter(s => s.length > 0 && !s.match(/^(brand|name|company|#)/i));
+}
+
+/* ── Main: Find logos button ── */
+document.getElementById('impBtn').addEventListener('click', async () => {
+  const raw    = document.getElementById('brandInput').value;
+  const brands = parseCSVBrands(raw);
+  if (!brands.length) { alert('Enter at least one brand name'); return; }
+
+  const btn  = document.getElementById('impBtn');
+  const fill = document.getElementById('impProgFill');
+  const lbl  = document.getElementById('impProgLabel');
+  const log  = document.getElementById('impStatusLog');
+  const prog = document.getElementById('impProgress');
+
+  btn.disabled = true;
+  document.getElementById('impBtnTxt').textContent = 'Building…';
+  prog.style.display = 'block';
+  log.style.display  = 'block';
+  log.innerHTML      = '';
+  fill.style.width   = '0%';
+  lbl.textContent    = '0 / ' + brands.length;
+
+  let built = 0, failed = 0;
+
+  for (let i = 0; i < brands.length; i++) {
+    const name = brands[i];
+
+    // Live status row
+    const row = document.createElement('div');
+    row.className = 'imp-row';
+    row.innerHTML = `<span class="imp-dot loading"></span><span class="imp-row-name">${name}</span><span class="imp-row-src">searching…</span>`;
+    log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+
+    const result = await findBrandLogo(name, '');
+    const dot = row.querySelector('.imp-dot');
+    const src = row.querySelector('.imp-row-src');
+
+    if (result.found && result.logoUrl) {
+      src.textContent = result.source || result.domain || '…';
+      const ok = await loadBrandLogoAsCard(result);
+      if (ok) { dot.className='imp-dot ok'; src.textContent='✓ '+(result.source||result.domain); built++; }
+      else    { dot.className='imp-dot fail'; src.textContent='load error'; failed++; }
+    } else {
+      dot.className='imp-dot fail'; src.textContent='not found'; failed++;
+    }
+
+    fill.style.width = Math.round(((i+1)/brands.length)*100)+'%';
+    lbl.textContent  = (i+1)+' / '+brands.length;
+  }
+
+  btn.disabled = false;
+  document.getElementById('impBtnTxt').textContent = '▶ Build cards';
+  document.getElementById('tinfo').textContent = `${S.files.length} card${S.files.length!==1?'s':''}`;
+  const sum=document.createElement('div');
+  sum.style.cssText='font-size:11px;color:var(--mt);padding:6px 0 2px;font-family:var(--mono)';
+  sum.textContent=`${built} built · ${failed} failed`;
+  log.appendChild(sum);
+  if(built>0) document.getElementById('cg').scrollIntoView({behavior:'smooth',block:'start'});
+});
+
+/* ── Logo search with multi-source fallback ── */
+/* ── Domain knowledge base (no API needed) ── */
+const KNOWN_DOMAINS = {
+  // ── Core brands (all regional variants map to main domain) ──
+  'nike':'nike.com','apple':'apple.com','google':'google.com',
+  'amazon':'amazon.com','amazon prime':'amazon.com','amazon aws':'aws.amazon.com',
+  'meta':'meta.com','meta quest':'meta.com',
+  'microsoft':'microsoft.com','samsung':'samsung.com','sony':'sony.com','lg':'lg.com',
+  'adidas':'adidas.com','puma':'puma.com','zara':'zara.com','h&m':'hm.com','hm':'hm.com',
+  'starbucks':'starbucks.com','mcdonalds':'mcdonalds.com','kfc':'kfc.com',
+  'netflix':'netflix.com','spotify':'spotify.com','youtube':'youtube.com',
+  'facebook':'facebook.com','instagram':'instagram.com','twitter':'twitter.com',
+  'tiktok':'tiktok.com','snapchat':'snapchat.com','pinterest':'pinterest.com',
+  'uber':'uber.com','lyft':'lyft.com','airbnb':'airbnb.com','booking':'booking.com',
+  'expedia':'expedia.com','hotels.com':'hotels.com','marriott':'marriott.com',
+  'hilton':'hilton.com','hyatt':'hyatt.com','ikea':'ikea.com','walmart':'walmart.com',
+  'target':'target.com','costco':'costco.com','bestbuy':'bestbuy.com',
+  'visa':'visa.com','mastercard':'mastercard.com','paypal':'paypal.com','stripe':'stripe.com',
+  'steam':'steampowered.com','discord':'discord.com','twitch':'twitch.tv',
+  'nintendo':'nintendo.com','playstation':'playstation.com','xbox':'xbox.com',
+  "levi's":'levis.com','levis':'levis.com','gap':'gap.com','uniqlo':'uniqlo.com',
+  'gucci':'gucci.com','louis vuitton':'louisvuitton.com','chanel':'chanel.com',
+  'shell':'shell.com','bp':'bp.com','total':'total.com','toyota':'toyota.com',
+  'bmw':'bmw.com','mercedes':'mercedes-benz.com','ford':'ford.com','honda':'honda.com',
+  'dell':'dell.com','hp':'hp.com','lenovo':'lenovo.com','asus':'asus.com',
+  'aeropostale':'aeropostale.com','old navy':'oldnavy.com','gap':'gap.com',
+};
+
+/* Strip regional/country suffixes — use just the core brand name
+   "Amazon Canada" → "Amazon", "Fortnite UK" → "Fortnite",
+   "H&M Germany" → "H&M", "Vodafone UAE" → "Vodafone" */
+function normaliseBrandName(raw) {
+  // Large list of country names, codes, and regional descriptors
+  const regions = /\s+(afghanistan|albania|algeria|angola|argentina|armenia|australia|austria|azerbaijan|bahrain|bangladesh|belarus|belgium|bolivia|bosnia|brazil|bulgaria|cambodia|cameroon|canada|chile|china|colombia|croatia|czechia|czech republic|denmark|ecuador|egypt|estonia|ethiopia|finland|france|georgia|germany|ghana|greece|guatemala|hong kong|hungary|india|indonesia|iran|iraq|ireland|israel|italy|ivory coast|japan|jordan|kazakhstan|kenya|korea|kosovo|kuwait|latvia|lebanon|libya|lithuania|luxembourg|malaysia|malta|mexico|moldova|morocco|mozambique|myanmar|nepal|netherlands|new zealand|nigeria|norway|oman|pakistan|panama|paraguay|peru|philippines|poland|portugal|qatar|romania|russia|saudi arabia|senegal|serbia|singapore|slovakia|slovenia|south africa|south korea|spain|sri lanka|sweden|switzerland|syria|taiwan|tanzania|thailand|tunisia|turkey|turkiye|ukraine|united arab emirates|united kingdom|united states|uruguay|venezuela|vietnam|zambia|zimbabwe|uk|us|usa|uae|ksa|gcc|eu|emea|apac|latam|mena|au|nz|hk|sg)\s*$/i;
+  return raw.replace(regions, '').trim();
+}
+
+async function findBrandLogo(name, apiKey) {
+  const core  = normaliseBrandName(name);   // "Amazon Canada" → "Amazon"
+  const entry = { name, core, domain: null, logoUrl: null, found: false };
+  const key   = core.toLowerCase().trim();
+
+  // Step 1: Known domains
+  if (KNOWN_DOMAINS[key]) {
+    entry.domain = KNOWN_DOMAINS[key];
+  } else if (KNOWN_DOMAINS[name.toLowerCase().trim()]) {
+    entry.domain = KNOWN_DOMAINS[name.toLowerCase().trim()];
+  } else {
+    // Step 2: AI domain guess (use core name, not regional variant)
+    try {
+      const d = await guessDomainAI(core);
+      if (d) entry.domain = d;
+    } catch(e) {}
+    if (!entry.domain) {
+      entry.domain = key.replace(/[^a-z0-9]/g,'') + '.com';
+    }
+  }
+
+  // Step 3–7: Try all logo sources
+  const sources = [
+    apiKey ? { url:`https://img.logo.dev/${entry.domain}?token=${apiKey}&size=200&format=png`, src:'logo.dev' } : null,
+    { url:`https://cdn.brandfetch.io/${entry.domain}/w/400/h/400`, src:'Brandfetch' },
+    { url:`https://logo.clearbit.com/${entry.domain}`, src:'Clearbit' },
+    { url:`https://icons.duckduckgo.com/ip3/${entry.domain}.ico`, src:'DuckDuckGo' },
+    { url:`https://www.google.com/s2/favicons?sz=256&domain_url=${entry.domain}`, src:'Google' },
+  ].filter(Boolean);
+
+  for (const s of sources) {
+    const ok = await testImageUrl(s.url);
+    if (ok) {
+      entry.logoUrl = s.url;
+      entry.source  = s.src;
+      entry.found   = true;
+      break;
+    }
+  }
+
+  // Step last: Wikipedia (marks as wiki so we avoid CORS canvas issue)
+  if (!entry.found) {
+    try {
+      const wikiUrl = await fetchWikipediaLogo(core);
+      if (wikiUrl) {
+        const ok = await testImageUrl(wikiUrl);
+        if (ok) {
+          entry.logoUrl  = wikiUrl;
+          entry.source   = 'Wikipedia';
+          entry.found    = true;
+          entry.isWiki   = true; // flag: use img tag not canvas
+        }
+      }
+    } catch(e) {}
+  }
+
+  return entry;
+}
+
+/* AI domain guess via Claude Haiku */
+async function guessDomainAI(brandName) {
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5',
+      max_tokens: 30,
+      messages: [{ role: 'user', content: `Primary domain of "${brandName}"? Reply ONLY with domain like nike.com` }]
+    })
+  });
+  const data = await resp.json();
+  const text = (data.content?.[0]?.text || '').trim().toLowerCase();
+  const m = text.match(/([a-z0-9-]+\.[a-z]{2,})/);
+  return m ? m[1] : null;
+}
+
+/* Wikipedia logo via Wikimedia API — CORS enabled */
+async function fetchWikipediaLogo(brandName) {
+  try {
+    const q   = encodeURIComponent(brandName + ' company logo');
+    const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(brandName)}&prop=pageimages&format=json&pithumbsize=300&origin=*`;
+    const res = await fetch(url);
+    const data= await res.json();
+    const pages = data?.query?.pages || {};
+    const page  = Object.values(pages)[0];
+    return page?.thumbnail?.source || null;
+  } catch(e) { return null; }
+}
+
+/* Test if image URL loads (with generous timeout) */
+function testImageUrl(url) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const t = setTimeout(() => { resolve(false); }, 5000);
+    img.onload  = () => { clearTimeout(t); resolve(img.naturalWidth > 8 && img.naturalHeight > 8); };
+    img.onerror = () => { clearTimeout(t); resolve(false); };
+    img.src = url;
+  });
+}
+
+/* ── Render the results picker grid ── */
+function renderImpGrid() {
+  const grid = document.getElementById('impGrid');
+  grid.innerHTML = '';
+  impBrands.forEach((b, i) => {
+    const card = document.createElement('div');
+    card.className = 'imp-card' + (impPicked.has(i) ? ' picked' : '') + (!b.found ? ' error' : '');
+    card.innerHTML = `
+      <div class="imp-check">✓</div>
+      <div class="imp-logo-wrap">
+        ${b.logoUrl
+          ? `<img src="${b.logoUrl}" crossorigin="anonymous" alt="${b.name}">`
+          : `<span style="font-size:22px;opacity:.3">${b.name[0].toUpperCase()}</span>`}
+      </div>
+      <div class="imp-brand-name">${b.name}</div>
+      <div class="imp-brand-domain">${b.domain||'—'}</div>
+      <span class="imp-status ${b.found?'found':'notfound'}">${b.found?'found':'not found'}</span>`;
+    card.addEventListener('click', () => {
+      if (!b.found) return;
+      if (impPicked.has(i)) impPicked.delete(i); else impPicked.add(i);
+      card.classList.toggle('picked');
+      card.querySelector('.imp-check').style.display = impPicked.has(i) ? 'flex' : 'none';
+    });
+    // Auto-pick found ones
+    if (b.found && !impPicked.has(i)) {
+      impPicked.add(i);
+      card.classList.add('picked');
+    }
+    grid.appendChild(card);
+  });
+}
+
+/* impConfirmBtn removed — auto-build handles this */
+
+async function loadBrandLogoAsCard(brand) {
+  return new Promise(resolve => {
+    const img = new Image();
+    // Don't set crossOrigin for wiki images — they block canvas but load fine as img
+    if (!brand.isWiki) img.crossOrigin = 'anonymous';
+    const timer = setTimeout(() => resolve(false), 10000);
+    img.onload = () => {
+      clearTimeout(timer);
+      if (img.naturalWidth < 8) { resolve(false); return; }
+
+      // For wiki/tainted images: draw via second pass without crossOrigin
+      // by re-creating the image without the crossOrigin attribute
+      const useImg = brand.isWiki ? (() => {
+        const i2 = new Image(); // no crossOrigin — loads but canvas will be tainted
+        i2.src = brand.logoUrl;
+        i2.naturalWidth = img.naturalWidth;
+        i2.naturalHeight = img.naturalHeight;
+        return img; // use original — analyse() handles it
+      })() : img;
+
+      const item = {
+        img: useImg,
+        name: (brand.core || brand.name) + '.png',
+        url: brand.logoUrl,
+        w: img.naturalWidth,
+        h: img.naturalHeight,
+        result: null,
+        proc: true,
+        corsBlocked: brand.isWiki || false,
+      };
+      S.files.push(item);
+      const fileIdx = S.files.length - 1;
+      renderGrid();
+      setTimeout(() => analyse(fileIdx), 20);
+      resolve(true);
+    };
+    img.onerror = () => { clearTimeout(timer); resolve(false); };
+    img.src = brand.logoUrl;
+  });
+}
+
+
+/* ══════════════════════════════════════════
+   ALT PICKER — "Try another" per card
+   Opens a modal with 6 variants rendered
+   on mini canvases. User picks or regenerates.
+══════════════════════════════════════════ */
+
+let altState = {
+  slotIdx: -1,         // which card slot
+  variants: [],        // array of result configs
+  selectedVariant: 0,
+};
+
+/* ── Generate variant configs for a given item ── */
+function generateVariants(item) {
+  if (!item?.result) return [];
+  const base = item.result;
+  const iw = item.w, ih = item.h;
+  const isPortrait = iw / ih < 1.2;
+
+  const variants = [];
+
+  // Variant A: current (as-is)
+  variants.push({ ...base, _label: 'Current' });
+
+  // Variant B: different scale
+  variants.push({ ...base, scale: Math.min(100, (base.scale||80) + 15), _label: 'Larger' });
+
+  // Variant C: smaller
+  variants.push({ ...base, scale: Math.max(40, (base.scale||80) - 20), _label: 'Smaller' });
+
+  // Variant D: shifted up
+  variants.push({ ...base, offY: -15, _label: 'Higher' });
+
+  // Variant E: different mode
+  if (base.mode === 'logo') {
+    variants.push({ ...base, mode: 'cover', logoBbox: null, _label: 'Cover fill' });
+  } else if (base.mode === 'cover') {
+    variants.push({ ...base, mode: 'logo', logoBbox: null, _label: 'Fit + bg' });
+  } else {
+    variants.push({ ...base, mode: 'blur', _label: 'Blur bg' });
+  }
+
+  // Variant F: different bg color (if logo mode)
+  const altBgs = ['#ffffff','#000000','#1a1a2e','#f4f4f5','#0f3460','#2d1515'];
+  const nextBg = altBgs.find(c => c !== base.bg) || '#ffffff';
+  variants.push({ ...base, bg: nextBg, _label: 'Alt bg' });
+
+  return variants;
+}
+
+/* ── Open the picker ── */
+function openAltPicker(slotIdx) {
+  const item = S.files[slotIdx];
+  if (!item) return;
+
+  altState.slotIdx    = slotIdx;
+  altState.variants   = generateVariants(item);
+  altState.selectedVariant = 0;
+
+  document.getElementById('altModalTitle').textContent = item.name;
+  document.getElementById('altModalSub').textContent   =
+    'Choose a variant or regenerate options';
+
+  renderAltGrid(item);
+  document.getElementById('altOverlay').classList.add('show');
+}
+
+/* ── Render 6 mini previews ── */
+function renderAltGrid(item) {
+  const grid = document.getElementById('altGrid');
+  grid.innerHTML = '';
+  const VW = 182, VH = 132;
+
+  altState.variants.forEach((variant, vi) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'alt-thumb' + (vi === altState.selectedVariant ? ' sel' : '');
+
+    const canvas = document.createElement('canvas');
+    canvas.width  = VW;
+    canvas.height = VH;
+    canvas.style.cssText = 'width:100%;height:100%;display:block';
+
+    const label = document.createElement('div');
+    label.className   = 'alt-thumb-label';
+    label.textContent = variant._label || `Option ${vi+1}`;
+
+    wrap.appendChild(canvas);
+    wrap.appendChild(label);
+    grid.appendChild(wrap);
+
+    // Draw this variant
+    draw(canvas, item, VW, VH, VW - 28, VH - 20, 14, 10, variant);
+
+    wrap.addEventListener('click', () => {
+      altState.selectedVariant = vi;
+      grid.querySelectorAll('.alt-thumb').forEach((t,j) =>
+        t.classList.toggle('sel', j === vi));
+    });
+  });
+}
+
+/* ── Regenerate more options (randomised) ── */
+document.getElementById('altRegen').addEventListener('click', () => {
+  const item = S.files[altState.slotIdx];
+  if (!item) return;
+
+  const base  = item.result;
+  const bgs   = ['#ffffff','#000000','#1a1a2e','#f4f4f5','#0f3460','#2d1515',
+                  '#1a0a00','#0a0a1a','#0a1a2a','#1a1218'];
+  const modes = ['logo','cover','blur','fit'];
+  const scales = [55, 65, 75, 80, 90, 100];
+
+  altState.variants = Array.from({length:6}, (_,i) => ({
+    ...base,
+    bg:    bgs[Math.floor(Math.random()*bgs.length)],
+    scale: scales[Math.floor(Math.random()*scales.length)],
+    offY:  Math.round((Math.random()-0.5)*30),
+    mode:  i < 3 ? base.mode : modes[Math.floor(Math.random()*modes.length)],
+    logoBbox: i < 3 ? base.logoBbox : null,
+    _label: `Option ${i+1}`,
+  }));
+  altState.selectedVariant = 0;
+  renderAltGrid(item);
+});
+
+/* ── Apply selected variant ── */
+document.getElementById('altApply').addEventListener('click', () => {
+  const idx     = altState.slotIdx;
+  const item    = S.files[idx];
+  const variant = altState.variants[altState.selectedVariant];
+  if (!item || !variant) return;
+
+  // Apply variant (strip _label helper key)
+  const {_label, ...result} = variant;
+  item.result = { ...result, manual: true };
+
+  updateCanvas(idx);
+  renderGrid();
+  document.getElementById('altOverlay').classList.remove('show');
+});
+
+/* ── Close ── */
+document.getElementById('altClose').addEventListener('click', () =>
+  document.getElementById('altOverlay').classList.remove('show'));
+document.getElementById('altOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('altOverlay'))
+    document.getElementById('altOverlay').classList.remove('show');
+});
+
+</script>
+</body>
+</html>
