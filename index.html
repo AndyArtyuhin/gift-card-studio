@@ -156,6 +156,12 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'Readex P
 .alt-apply:hover{opacity:.9}
 .alt-loading{text-align:center;color:var(--mt);font-size:12px;padding:20px 0}
 
+/* ── Brand input section (top, always open) ── */
+.brand-input-section{padding:14px 14px 6px;border-bottom:1px solid var(--bd)}
+.brand-input-label{font-size:11px;font-weight:500;color:var(--tx);letter-spacing:.04em;margin-bottom:8px}
+#brandInput{width:100%;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:9px 10px;color:var(--tx);font-family:var(--mono);font-size:11px;resize:none;outline:none;line-height:1.6;margin-top:8px;display:block}
+#brandInput:focus{border-color:var(--ac)}
+
 /* ── Brand import ── */
 #impStatusLog{max-height:200px;overflow-y:auto}#impStatusLog .imp-row{display:flex;align-items:center;gap:7px;padding:4px 0;border-bottom:1px solid var(--bd);font-size:11px}
 #impStatusLog .imp-row:last-child{border-bottom:none}
@@ -221,52 +227,18 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'Readex P
       <div class="ph-title">Logo Fitter</div>
     </div>
     <div class="panel-scroll" id="panelScroll">
-    <div class="dz" id="dz">
-      <input type="file" id="fi" accept="image/*" multiple>
-      <div class="dz-icon">⊕</div>
-      <p><strong>Drop images here</strong><br>or click to browse<br><span style="font-size:11px;opacity:.6">Logos · Photos · Card art · PNG · JPG</span></p>
-    </div>
-    <!-- ── GENERATOR ── -->
-    <div class="gen-section" id="genSection">
-      <div class="gen-header" id="genToggle">
-        <span class="gen-title">Generate by Category</span>
-        <span class="gen-chev" id="genChev">▼</span>
-      </div>
-      <div class="gen-body" id="genBody">
-        <div class="gen-label">Number of cards</div>
-        <div class="gen-count-row">
-          <input type="range" id="genCount" min="1" max="100" value="6" step="1">
-          <span class="gen-count-val" id="genCountVal">6</span>
-        </div>
-        <button class="gen-btn" id="genBtn">
-          <span id="genBtnTxt">✦ Generate cards</span>
-        </button>
-        <div class="gen-progress" id="genProgress" style="display:none">
-          <div class="gen-prog-bar"><div class="gen-prog-fill" id="genProgFill"></div></div>
-          <span class="gen-prog-label" id="genProgLabel">0 / 0</span>
-        </div>
-        <div class="gen-label" style="margin-top:12px">Category</div>
-        <div class="cat-grid" id="catGrid"></div>
-      </div>
-    </div>
 
-    <!-- ── BRAND IMPORT ── -->
-    <div class="gen-section" id="importSection">
-      <div class="gen-header" id="importToggle">
-        <span class="gen-title">Import Brands</span>
-        <span class="gen-chev" id="importChev">▼</span>
-      </div>
-      <div class="gen-body" id="importBody">
-        <p class="imp-hint">One brand per line — system finds logos from 5 open sources and builds cards automatically.</p>
+      <!-- ── ENTER BRAND NAMES (top, always visible) ── -->
+      <div class="brand-input-section">
+        <div class="brand-input-label">Enter Brand Names</div>
         <div class="imp-dropzone" id="impDz">
           <input type="file" id="impFile" accept=".csv,.txt,text/plain,text/csv">
           <span class="imp-dz-icon">⊕</span>
-          <span class="imp-dz-txt">Drop CSV / TXT here</span>
+          <span class="imp-dz-txt">Drop CSV / TXT</span>
         </div>
-        <div class="gen-label" style="margin-top:10px">Or type brands</div>
-        <textarea id="brandInput" placeholder="Nike&#10;Adidas&#10;Netflix&#10;Starbucks&#10;..." rows="5"></textarea>
+        <textarea id="brandInput" placeholder="Nike&#10;Adidas&#10;Netflix&#10;Starbucks&#10;..." rows="6"></textarea>
         <button class="gen-btn" id="impBtn" style="margin-top:8px">
-          <span id="impBtnTxt">▶ Build cards</span>
+          <span id="impBtnTxt">▶ Generate</span>
         </button>
         <div class="gen-progress" id="impProgress" style="display:none">
           <div class="gen-prog-bar"><div class="gen-prog-fill" id="impProgFill"></div></div>
@@ -274,12 +246,51 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'Readex P
         </div>
         <div id="impStatusLog" style="display:none;margin-top:8px"></div>
       </div>
-    </div>
 
-    <div class="q-wrap">
-      <span class="q-label">Files <span id="qc" style="color:var(--tx)">0</span></span>
-      <div class="q-list" id="ql"></div>
-    </div>
+      <!-- ── DROP IMAGES ── -->
+      <div class="gen-section" id="dropSection">
+        <div class="gen-header" id="dropToggle">
+          <span class="gen-title">Drop Images</span>
+          <span class="gen-chev" id="dropChev">▼</span>
+        </div>
+        <div class="gen-body" id="dropBody">
+          <div class="dz" id="dz">
+            <input type="file" id="fi" accept="image/*" multiple>
+            <div class="dz-icon">⊕</div>
+            <p><strong>Drop images here</strong><br>or click to browse<br><span style="font-size:11px;opacity:.6">Logos · Photos · Card art · PNG · JPG</span></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── GENERATE BY CATEGORY (collapsed by default) ── -->
+      <div class="gen-section" id="genSection">
+        <div class="gen-header" id="genToggle">
+          <span class="gen-title">Generate by Category</span>
+          <span class="gen-chev" id="genChev">▼</span>
+        </div>
+        <div class="gen-body" id="genBody">
+          <div class="gen-label">Number of cards</div>
+          <div class="gen-count-row">
+            <input type="range" id="genCount" min="1" max="100" value="6" step="1">
+            <span class="gen-count-val" id="genCountVal">6</span>
+          </div>
+          <button class="gen-btn" id="genBtn">
+            <span id="genBtnTxt">✦ Generate</span>
+          </button>
+          <div class="gen-progress" id="genProgress" style="display:none">
+            <div class="gen-prog-bar"><div class="gen-prog-fill" id="genProgFill"></div></div>
+            <span class="gen-prog-label" id="genProgLabel">0 / 0</span>
+          </div>
+          <div class="gen-label" style="margin-top:12px">Category</div>
+          <div class="cat-grid" id="catGrid"></div>
+        </div>
+      </div>
+
+      <!-- ── FILES ── -->
+      <div class="q-wrap">
+        <span class="q-label">Files <span id="qc" style="color:var(--tx)">0</span></span>
+        <div class="q-list" id="ql"></div>
+      </div>
     </div><!-- /panel-scroll -->
   </div>
   <div class="main">
@@ -1084,12 +1095,19 @@ function buildCatGrid(){
 buildCatGrid();
 
 /* Toggle collapse */
+/* ── Drop images toggle ── */
+document.getElementById('dropToggle').addEventListener('click', () => {
+  document.getElementById('dropBody').classList.toggle('open');
+  document.getElementById('dropChev').classList.toggle('open');
+});
+
 document.getElementById('genToggle').addEventListener('click', () => {
   document.getElementById('genBody').classList.toggle('open');
   document.getElementById('genChev').classList.toggle('open');
 });
-document.getElementById('genBody').classList.add('open');
-document.getElementById('genChev').classList.add('open');
+// Generate by Category starts collapsed
+// document.getElementById('genBody').classList.add('open');
+// document.getElementById('genChev').classList.add('open');
 
 /* Count slider */
 document.getElementById('genCount').addEventListener('input', e => {
