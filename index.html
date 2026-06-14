@@ -853,6 +853,118 @@ function setZ(z){
 ══════════════════════════════════════════ */
 
 // Category definitions with curated search terms
+/* ── Known game titles → fetch cover art, not logo ── */
+const GAME_BRANDS = new Set([
+  'fortnite','minecraft','roblox','gta','grand theft auto','call of duty','cod',
+  'valorant','league of legends','lol','dota','dota 2','cs2','counter-strike',
+  'pubg','apex legends','overwatch','world of warcraft','wow','pokemon',
+  'fifa','ea fc','nba 2k','madden','the sims','cyberpunk','elden ring',
+  'god of war','spider-man','halo','zelda','mario','sonic','fifa',
+  'battlefield','rainbow six','siege','rocket league','among us',
+  'fall guys','genshin impact','honkai','clash of clans','clash royale',
+  'candy crush','angry birds','temple run','subway surfers',
+  'steam','epic games','playstation','xbox','nintendo','nintendo switch',
+  'game pass','ps plus','psn','xbox live','discord nitro',
+]);
+
+function isGameBrand(name) {
+  const n = name.toLowerCase().trim();
+  return GAME_BRANDS.has(n) || GAME_BRANDS.has(normaliseBrandName(n).toLowerCase());
+}
+
+/* ── Fetch alternative logo images for a brand ── */
+async function fetchAltLogos(brandName) {
+  const core   = normaliseBrandName(brandName);
+  const domain = await (async () => {
+    const k = core.toLowerCase();
+    if (KNOWN_DOMAINS[k]) return KNOWN_DOMAINS[k];
+    try { return await guessDomainAI(core); } catch(e) { return k.replace(/[^a-z0-9]/g,'') + '.com'; }
+  })();
+
+  const alts = [];
+
+  // Source 1: Brandfetch variants (dark/light/icon)
+  const bfVariants = [
+    { url: `https://cdn.brandfetch.io/${domain}/w/400/h/400`, label: 'Square' },
+    { url: `https://cdn.brandfetch.io/${domain}/w/600/h/200`, label: 'Wide' },
+    { url: `https://cdn.brandfetch.io/${domain}/w/200/h/200/theme/dark`, label: 'Dark' },
+    { url: `https://cdn.brandfetch.io/${domain}/w/200/h/200/theme/light`, label: 'Light' },
+  ];
+  for (const v of bfVariants) {
+    const ok = await testImageUrl(v.url);
+    if (ok) alts.push({ url: v.url, label: v.label, mode: 'logo', bg: '#ffffff' });
+    if (alts.length >= 3) break;
+  }
+
+  // Source 2: Wikipedia brand image
+  try {
+    const wikiUrl = await fetchWikipediaLogo(core);
+    if (wikiUrl) {
+      const ok = await testImageUrl(wikiUrl);
+      if (ok) alts.push({ url: wikiUrl, label: 'Wikipedia', mode: 'logo', bg: '#f4f4f5' });
+    }
+  } catch(e) {}
+
+  // Source 3: DuckDuckGo favicon (different size)
+  const ddgUrl = `https://icons.duckduckgo.com/ip3/${domain}.ico`;
+  const ddgOk  = await testImageUrl(ddgUrl);
+  if (ddgOk) alts.push({ url: ddgUrl, label: 'Icon', mode: 'logo', bg: '#ffffff' });
+
+  // Source 4: Google favicon
+  const gUrl = `https://www.google.com/s2/favicons?sz=256&domain_url=${domain}`;
+  const gOk  = await testImageUrl(gUrl);
+  if (gOk) alts.push({ url: gUrl, label: 'Google', mode: 'logo', bg: '#f4f4f5' });
+
+  // Source 5: Different bg colors for current logo (visual variants)
+  const bgs = ['#000000','#ffffff','#1a1a2e','#f4f4f5','#0f3460','#2d1515','#1a0d1a'];
+  for (const bg of bgs) {
+    alts.push({ url: null, label: 'Bg: ' + bg, mode: 'logo', bg, useCurrentImg: true });
+  }
+
+  return alts;
+}
+
+/* ── Fetch game cover art ── */
+async function fetchGameCover(gameName) {
+  const alts = [];
+
+  // Steam search via Steam store API (CORS ok via steam CDN)
+  try {
+    const q    = encodeURIComponent(gameName);
+    const res  = await fetch(`https://store.steampowered.com/api/storesearch/?term=${q}&l=en&cc=us`);
+    const data = await res.json();
+    const items = data?.items || [];
+    for (const item of items.slice(0, 4)) {
+      const cover = `https://cdn.akamai.steamstatic.com/steam/apps/${item.id}/header.jpg`;
+      const ok = await testImageUrl(cover);
+      if (ok) alts.push({ url: cover, label: `Steam: ${item.name}`, mode: 'cover', bg: '#000' });
+    }
+  } catch(e) {}
+
+  // RAWG API (public, no key for basic search)
+  try {
+    const q   = encodeURIComponent(gameName);
+    const res = await fetch(`https://api.rawg.io/api/games?search=${q}&page_size=4&key=`);
+    const data= await res.json();
+    for (const g of (data?.results || []).slice(0, 3)) {
+      if (g.background_image) {
+        const ok = await testImageUrl(g.background_image);
+        if (ok) alts.push({ url: g.background_image, label: g.name, mode: 'cover', bg: '#000' });
+      }
+    }
+  } catch(e) {}
+
+  // Picsum with game-like seeds as fallback (replace with real cover when found)
+  if (alts.length === 0) {
+    const seeds = [10, 42, 77, 99, 123];
+    for (const s of seeds) {
+      alts.push({ url: `https://picsum.photos/seed/${s}/1200/800`, label: `Art ${s}`, mode: 'cover', bg: '#000' });
+    }
+  }
+
+  return alts;
+}
+
 const CATEGORIES = [
   {id:'travel',      label:'✈ Travel',         queries:['travel','landscape','scenic mountains','ocean coast'],       bg:'#0f2030'},
   {id:'hotel',       label:'🏨 Hotel',          queries:['luxury hotel','resort pool','hotel lobby','villa'],          bg:'#1a1208'},
@@ -1251,9 +1363,38 @@ function normaliseBrandName(raw) {
 }
 
 async function findBrandLogo(name, apiKey) {
-  const core  = normaliseBrandName(name);   // "Amazon Canada" → "Amazon"
+  const core  = normaliseBrandName(name);
   const entry = { name, core, domain: null, logoUrl: null, found: false };
   const key   = core.toLowerCase().trim();
+
+  // For games: search Steam for cover art instead of logo
+  if (isGameBrand(name)) {
+    try {
+      const q   = encodeURIComponent(core);
+      const res = await fetch(`https://store.steampowered.com/api/storesearch/?term=${q}&l=en&cc=us`);
+      const data= await res.json();
+      const first = data?.items?.[0];
+      if (first) {
+        const coverUrl = `https://cdn.akamai.steamstatic.com/steam/apps/${first.id}/header.jpg`;
+        const ok = await testImageUrl(coverUrl);
+        if (ok) {
+          entry.logoUrl  = coverUrl;
+          entry.source   = 'Steam';
+          entry.found    = true;
+          entry.isGame   = true;
+          entry.domain   = 'store.steampowered.com';
+          return entry;
+        }
+      }
+    } catch(e) {}
+    // Fallback: use picsum landscape if Steam fails
+    const seed = Math.abs(core.split('').reduce((s,c)=>s+c.charCodeAt(0),0)) % 500;
+    entry.logoUrl = `https://picsum.photos/seed/${seed}/1200/800`;
+    entry.source  = 'Picsum';
+    entry.found   = true;
+    entry.isGame  = true;
+    return entry;
+  }
 
   // Step 1: Known domains
   if (KNOWN_DOMAINS[key]) {
@@ -1405,14 +1546,22 @@ async function loadBrandLogoAsCard(brand) {
         return img; // use original — analyse() handles it
       })() : img;
 
+      // Detect if this is a game — if so pre-set cover mode
+      const brandIsGame = isGameBrand(brand.core || brand.name);
+
       const item = {
         img: useImg,
         name: (brand.core || brand.name) + '.png',
         url: brand.logoUrl,
         w: img.naturalWidth,
         h: img.naturalHeight,
-        result: null,
-        proc: true,
+        brandName: brand.core || brand.name,
+        isGame: brandIsGame,
+        result: brandIsGame ? {
+          mode: 'cover', bg: '#000000', scale: 100, offY: 0, thresh: 45,
+          note: 'game · cover', manual: false, logoBbox: null, aiMode: 'photo'
+        } : null,
+        proc: !brandIsGame,  // games skip AI analysis
         corsBlocked: brand.isWiki || false,
       };
       S.files.push(item);
@@ -1477,21 +1626,121 @@ function generateVariants(item) {
   return variants;
 }
 
-/* ── Open the picker ── */
-function openAltPicker(slotIdx) {
+/* ── Open the picker — fetches real alternative images ── */
+async function openAltPicker(slotIdx) {
   const item = S.files[slotIdx];
   if (!item) return;
 
-  altState.slotIdx    = slotIdx;
-  altState.variants   = generateVariants(item);
+  altState.slotIdx         = slotIdx;
+  altState.variants        = generateVariants(item); // show current variants immediately
   altState.selectedVariant = 0;
+  altState.altImages       = [];  // will hold fetched alt image objects
 
-  document.getElementById('altModalTitle').textContent = item.name;
-  document.getElementById('altModalSub').textContent   =
-    'Choose a variant or regenerate options';
+  const brandName = item.brandName || item.name.replace(/\.png$/,'');
+  document.getElementById('altModalTitle').textContent = brandName;
+  document.getElementById('altModalSub').textContent   = 'Loading alternatives…';
 
   renderAltGrid(item);
   document.getElementById('altOverlay').classList.add('show');
+
+  // Async: fetch real alternative images
+  try {
+    const rawAlts = item.isGame
+      ? await fetchGameCover(brandName)
+      : await fetchAltLogos(brandName);
+
+    // Load images for non-useCurrentImg alts
+    const loaded = [];
+    for (const alt of rawAlts) {
+      if (alt.useCurrentImg) {
+        // Just a bg color variant — use current image with different bg
+        loaded.push({
+          img: item.img,
+          result: { ...item.result, bg: alt.bg, _label: alt.label },
+          _label: alt.label,
+        });
+      } else if (alt.url) {
+        const img = await loadImageCors(alt.url);
+        if (img) {
+          loaded.push({
+            img,
+            result: {
+              mode: alt.mode || 'logo',
+              bg: alt.bg || '#ffffff',
+              scale: alt.mode === 'cover' ? 100 : 85,
+              offY: 0, thresh: 45,
+              logoBbox: null, aiMode: alt.mode === 'cover' ? 'photo' : 'logo',
+              manual: true,
+              _label: alt.label,
+            },
+            _label: alt.label,
+          });
+        }
+      }
+      if (loaded.length >= 8) break;
+    }
+
+    if (loaded.length > 0) {
+      altState.altImages = loaded;
+      document.getElementById('altModalSub').textContent =
+        `${loaded.length} alternatives found — click to select`;
+      renderAltGridWithImages(item, loaded);
+    } else {
+      document.getElementById('altModalSub').textContent = 'No alternatives found — try regenerate';
+    }
+  } catch(e) {
+    document.getElementById('altModalSub').textContent = 'Could not load alternatives';
+  }
+}
+
+/* Load an image with crossOrigin, returns null on failure */
+function loadImageCors(url) {
+  return new Promise(resolve => {
+    const img   = new Image();
+    img.crossOrigin = 'anonymous';
+    const timer = setTimeout(() => resolve(null), 6000);
+    img.onload  = () => { clearTimeout(timer); resolve(img.naturalWidth > 8 ? img : null); };
+    img.onerror = () => { clearTimeout(timer); resolve(null); };
+    img.src = url;
+  });
+}
+
+/* Render alt grid with real fetched images */
+function renderAltGridWithImages(item, altImages) {
+  const grid = document.getElementById('altGrid');
+  grid.innerHTML = '';
+  const VW = 182, VH = 132;
+
+  altImages.forEach((alt, vi) => {
+    const wrap   = document.createElement('div');
+    wrap.className = 'alt-thumb' + (vi === 0 ? ' sel' : '');
+
+    const canvas = document.createElement('canvas');
+    canvas.width  = VW; canvas.height = VH;
+    canvas.style.cssText = 'width:100%;height:100%;display:block';
+
+    const label = document.createElement('div');
+    label.className   = 'alt-thumb-label';
+    label.textContent = alt._label || `Alt ${vi+1}`;
+
+    wrap.appendChild(canvas); wrap.appendChild(label);
+    grid.appendChild(wrap);
+
+    // Create a synthetic item with the alt image
+    const synth = { ...item, img: alt.img, w: alt.img.naturalWidth, h: alt.img.naturalHeight };
+    draw(canvas, synth, VW, VH, VW-28, VH-20, 14, 10, alt.result);
+
+    wrap.addEventListener('click', () => {
+      altState.selectedVariant = vi;
+      altState.selectedAltImage = alt;
+      grid.querySelectorAll('.alt-thumb').forEach((t,j) =>
+        t.classList.toggle('sel', j === vi));
+    });
+  });
+
+  // Select first by default
+  altState.selectedVariant  = 0;
+  altState.selectedAltImage = altImages[0];
 }
 
 /* ── Render 6 mini previews ── */
@@ -1554,17 +1803,30 @@ document.getElementById('altRegen').addEventListener('click', () => {
 
 /* ── Apply selected variant ── */
 document.getElementById('altApply').addEventListener('click', () => {
-  const idx     = altState.slotIdx;
-  const item    = S.files[idx];
-  const variant = altState.variants[altState.selectedVariant];
-  if (!item || !variant) return;
+  const idx  = altState.slotIdx;
+  const item = S.files[idx];
+  if (!item) return;
 
-  // Apply variant (strip _label helper key)
-  const {_label, ...result} = variant;
-  item.result = { ...result, manual: true };
+  // If user selected a real fetched alt image
+  if (altState.selectedAltImage) {
+    const alt = altState.selectedAltImage;
+    const {_label, ...result} = alt.result;
+    // Replace the image itself
+    item.img    = alt.img;
+    item.w      = alt.img.naturalWidth;
+    item.h      = alt.img.naturalHeight;
+    item.result = { ...result, manual: true };
+  } else {
+    // Fallback: apply variant config only
+    const variant = altState.variants[altState.selectedVariant];
+    if (!variant) return;
+    const {_label, ...result} = variant;
+    item.result = { ...result, manual: true };
+  }
 
   updateCanvas(idx);
   renderGrid();
+  altState.selectedAltImage = null;
   document.getElementById('altOverlay').classList.remove('show');
 });
 
