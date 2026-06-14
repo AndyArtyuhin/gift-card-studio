@@ -1333,10 +1333,7 @@ let impBrands  = [];  // [{name, domain, logoUrl, img, picked}]
 let impPicked  = new Set();
 
 /* ── toggle collapse ── */
-document.getElementById('importToggle').addEventListener('click', () => {
-  document.getElementById('importBody').classList.toggle('open');
-  document.getElementById('importChev').classList.toggle('open');
-});
+/* importToggle removed - section is now always visible */
 
 /* ── CSV/TXT file drop ── */
 const impDz = document.getElementById('impDz');
@@ -1590,7 +1587,7 @@ function testImageUrl(url) {
 /* ── Render the results picker grid ── */
 function renderImpGrid() {
   const grid = document.getElementById('impGrid');
-  grid.innerHTML = '';
+  if (!grid) return; // picker removed from UI
   impBrands.forEach((b, i) => {
     const card = document.createElement('div');
     card.className = 'imp-card' + (impPicked.has(i) ? ' picked' : '') + (!b.found ? ' error' : '');
