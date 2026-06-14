@@ -873,52 +873,132 @@ function isGameBrand(name) {
 }
 
 /* ── Fetch alternative logo images for a brand ── */
-async function fetchAltLogos(brandName) {
-  const core   = normaliseBrandName(brandName);
-  const domain = await (async () => {
-    const k = core.toLowerCase();
-    if (KNOWN_DOMAINS[k]) return KNOWN_DOMAINS[k];
-    try { return await guessDomainAI(core); } catch(e) { return k.replace(/[^a-z0-9]/g,'') + '.com'; }
-  })();
-
-  const alts = [];
-
-  // Source 1: Brandfetch variants (dark/light/icon)
-  const bfVariants = [
-    { url: `https://cdn.brandfetch.io/${domain}/w/400/h/400`, label: 'Square' },
-    { url: `https://cdn.brandfetch.io/${domain}/w/600/h/200`, label: 'Wide' },
-    { url: `https://cdn.brandfetch.io/${domain}/w/200/h/200/theme/dark`, label: 'Dark' },
-    { url: `https://cdn.brandfetch.io/${domain}/w/200/h/200/theme/light`, label: 'Light' },
-  ];
-  for (const v of bfVariants) {
-    const ok = await testImageUrl(v.url);
-    if (ok) alts.push({ url: v.url, label: v.label, mode: 'logo', bg: '#ffffff' });
-    if (alts.length >= 3) break;
-  }
-
-  // Source 2: Wikipedia brand image
+/* ── Ask AI to find diverse logo URLs for a brand ── */
+async function fetchLogoUrlsAI(brandName, domain) {
   try {
-    const wikiUrl = await fetchWikipediaLogo(core);
-    if (wikiUrl) {
-      const ok = await testImageUrl(wikiUrl);
-      if (ok) alts.push({ url: wikiUrl, label: 'Wikipedia', mode: 'logo', bg: '#f4f4f5' });
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 600,
+        messages: [{
+          role: 'user',
+          content: `For the brand "${brandName}" (domain: ${domain}), list 6 diverse logo image URLs from open sources (Wikipedia, Wikimedia Commons, official website, vectorwiki, etc).
+
+Include DIFFERENT variants:
+1. Full wordmark logo (brand name + symbol) on white/transparent background
+2. Symbol/icon only (just the mark, no text)  
+3. Dark version or inverted
+4. Square app icon version
+5. Horizontal/wide version
+6. Any unique variant (monochrome, seasonal, alternate)
+
+Return ONLY a JSON array of objects, no explanation:
+[
+  {"url":"https://upload.wikimedia.org/wikipedia/commons/...","label":"Wordmark","bg":"#ffffff"},
+  {"url":"https://...","label":"Icon only","bg":"#000000"},
+  ...
+]
+
+Use real, working image URLs. Prefer Wikipedia/Wikimedia Commons and official CDN URLs.`
+        }]
+      })
+    });
+    const data = await resp.json();
+    const text = (data.content?.[0]?.text||'').trim();
+    const match = text.match(/\[[\s\S]*\]/);
+    if (match) {
+      const arr = JSON.parse(match[0]);
+      return Array.isArray(arr) ? arr : [];
     }
   } catch(e) {}
+  return [];
+}
 
-  // Source 3: DuckDuckGo favicon (different size)
-  const ddgUrl = `https://icons.duckduckgo.com/ip3/${domain}.ico`;
-  const ddgOk  = await testImageUrl(ddgUrl);
-  if (ddgOk) alts.push({ url: ddgUrl, label: 'Icon', mode: 'logo', bg: '#ffffff' });
+async function fetchAltLogos(brandName) {
+  const core   = normaliseBrandName(brandName);
+  const key    = core.toLowerCase();
+  const domain = KNOWN_DOMAINS[key] || 
+    await guessDomainAI(core).catch(()=>null) || 
+    (key.replace(/[^a-z0-9]/g,'') + '.com');
 
-  // Source 4: Google favicon
-  const gUrl = `https://www.google.com/s2/favicons?sz=256&domain_url=${domain}`;
-  const gOk  = await testImageUrl(gUrl);
-  if (gOk) alts.push({ url: gUrl, label: 'Google', mode: 'logo', bg: '#f4f4f5' });
+  const alts = [];
+  const seenUrls = new Set();
 
-  // Source 5: Different bg colors for current logo (visual variants)
-  const bgs = ['#000000','#ffffff','#1a1a2e','#f4f4f5','#0f3460','#2d1515','#1a0d1a'];
-  for (const bg of bgs) {
-    alts.push({ url: null, label: 'Bg: ' + bg, mode: 'logo', bg, useCurrentImg: true });
+  // ── SOURCE 1: AI finds diverse URLs from open sources ──
+  const aiUrls = await fetchLogoUrlsAI(core, domain);
+  for (const item of aiUrls) {
+    if (!item.url || seenUrls.has(item.url)) continue;
+    seenUrls.add(item.url);
+    const ok = await testImageUrl(item.url);
+    if (ok) {
+      alts.push({
+        url:   item.url,
+        label: item.label || 'AI found',
+        mode:  'logo',
+        bg:    item.bg || '#ffffff',
+      });
+    }
+    if (alts.length >= 4) break;
+  }
+
+  // ── SOURCE 2: Brandfetch — different aspect ratios ──
+  const bfVariants = [
+    { url:`https://cdn.brandfetch.io/${domain}/w/800/h/200`, label:'Wide wordmark', bg:'#ffffff' },
+    { url:`https://cdn.brandfetch.io/${domain}/w/200/h/200`, label:'Square icon',   bg:'#ffffff' },
+    { url:`https://cdn.brandfetch.io/${domain}/w/400/h/400`, label:'Square logo',   bg:'#000000' },
+    { url:`https://cdn.brandfetch.io/${domain}/w/400/h/150`, label:'Horizontal',    bg:'#f4f4f5' },
+  ];
+  for (const v of bfVariants) {
+    if (seenUrls.has(v.url)) continue;
+    seenUrls.add(v.url);
+    const ok = await testImageUrl(v.url);
+    if (ok) alts.push({ url:v.url, label:v.label, mode:'logo', bg:v.bg });
+    if (alts.length >= 6) break;
+  }
+
+  // ── SOURCE 3: Clearbit different sizes ──
+  const clearbitVariants = [
+    { url:`https://logo.clearbit.com/${domain}?size=800`, label:'Clearbit full',  bg:'#ffffff' },
+    { url:`https://logo.clearbit.com/${domain}?size=128`, label:'Clearbit icon',  bg:'#000000' },
+  ];
+  for (const v of clearbitVariants) {
+    if (seenUrls.has(v.url) || alts.length >= 7) continue;
+    seenUrls.add(v.url);
+    const ok = await testImageUrl(v.url);
+    if (ok) alts.push({ url:v.url, label:v.label, mode:'logo', bg:v.bg });
+  }
+
+  // ── SOURCE 4: Wikipedia logo ──
+  if (alts.length < 7) {
+    try {
+      const wikiUrl = await fetchWikipediaLogo(core);
+      if (wikiUrl && !seenUrls.has(wikiUrl)) {
+        seenUrls.add(wikiUrl);
+        const ok = await testImageUrl(wikiUrl);
+        if (ok) alts.push({ url:wikiUrl, label:'Wikipedia', mode:'logo', bg:'#f4f4f5' });
+      }
+    } catch(e) {}
+  }
+
+  // ── SOURCE 5: Favicon as icon-only variant ──
+  const faviconUrl = `https://www.google.com/s2/favicons?sz=256&domain_url=${domain}`;
+  if (!seenUrls.has(faviconUrl) && alts.length < 8) {
+    const ok = await testImageUrl(faviconUrl);
+    if (ok) alts.push({ url:faviconUrl, label:'App icon', mode:'logo', bg:'#ffffff' });
+  }
+
+  // ── SOURCE 6: bg-color variants of best logo (ensures visual diversity) ──
+  const bgVariants = [
+    { bg:'#000000', label:'On black' },
+    { bg:'#ffffff', label:'On white' },
+    { bg:'#1a1a2e', label:'On dark blue' },
+    { bg:'#e63946', label:'On red' },
+  ];
+  for (const v of bgVariants) {
+    if (alts.length >= 9) break;
+    alts.push({ url:null, label:v.label, mode:'logo', bg:v.bg, useCurrentImg:true });
   }
 
   return alts;
