@@ -1806,66 +1806,112 @@ async function openAltPicker(slotIdx) {
   const item = S.files[slotIdx];
   if (!item) return;
 
-  altState.slotIdx         = slotIdx;
-  altState.variants        = generateVariants(item); // show current variants immediately
-  altState.selectedVariant = 0;
-  altState.altImages       = [];  // will hold fetched alt image objects
+  altState.slotIdx          = slotIdx;
+  altState.selectedVariant  = 0;
+  altState.selectedAltImage = null;
 
-  const brandName = item.brandName || item.name.replace(/\.png$/,'');
+  const brandName = item.brandName || item.name.replace(/\.png$/, '').replace(/[-_]/g,' ');
   document.getElementById('altModalTitle').textContent = brandName;
-  document.getElementById('altModalSub').textContent   = 'Loading alternatives…';
+  document.getElementById('altModalSub').textContent   = 'Searching for logo variants…';
 
-  renderAltGrid(item);
+  // Show loading skeleton immediately
+  const grid = document.getElementById('altGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 6; i++) {
+    const sk = document.createElement('div');
+    sk.className = 'alt-thumb';
+    sk.style.cssText = 'background:var(--s2);display:flex;align-items:center;justify-content:center;aspect-ratio:182/132';
+    sk.innerHTML = '<span style="color:var(--mt);font-size:10px;font-family:var(--mono)">loading…</span>';
+    grid.appendChild(sk);
+  }
   document.getElementById('altOverlay').classList.add('show');
 
-  // Async: fetch real alternative images
   try {
+    // Fetch all candidate URLs (fast — just URLs, no image loading yet)
     const rawAlts = item.isGame
       ? await fetchGameCover(brandName)
       : await fetchAltLogos(brandName);
 
-    // Load images for non-useCurrentImg alts
+    // Separate: bg-color variants (instant) vs real image URLs
+    const bgVariants = rawAlts.filter(a => a.useCurrentImg);
+    const urlVariants = rawAlts.filter(a => a.url && !a.useCurrentImg);
+
     const loaded = [];
-    for (const alt of rawAlts) {
-      if (alt.useCurrentImg) {
-        // Just a bg color variant — use current image with different bg
+
+    // Load URL variants concurrently (all at once, don't wait for each)
+    document.getElementById('altModalSub').textContent = `Found ${urlVariants.length} sources — loading…`;
+
+    const loadPromises = urlVariants.map(alt =>
+      loadImageFast(alt.url).then(img => img ? { alt, img } : null)
+    );
+    const results = await Promise.allSettled(loadPromises);
+
+    for (const res of results) {
+      if (res.status === 'fulfilled' && res.value) {
+        const { alt, img } = res.value;
         loaded.push({
-          img: item.img,
-          result: { ...item.result, bg: alt.bg, _label: alt.label },
+          img,
+          result: {
+            mode:     alt.mode || 'logo',
+            bg:       alt.bg   || '#ffffff',
+            scale:    alt.mode === 'cover' ? 100 : 85,
+            offY: 0, thresh: 45,
+            logoBbox: null,
+            aiMode:   alt.mode === 'cover' ? 'photo' : 'logo',
+            manual: true,
+          },
           _label: alt.label,
         });
-      } else if (alt.url) {
-        const img = await loadImageCors(alt.url);
-        if (img) {
-          loaded.push({
-            img,
-            result: {
-              mode: alt.mode || 'logo',
-              bg: alt.bg || '#ffffff',
-              scale: alt.mode === 'cover' ? 100 : 85,
-              offY: 0, thresh: 45,
-              logoBbox: null, aiMode: alt.mode === 'cover' ? 'photo' : 'logo',
-              manual: true,
-              _label: alt.label,
-            },
-            _label: alt.label,
-          });
-        }
       }
-      if (loaded.length >= 8) break;
+    }
+
+    // Add bg-color variants of current logo (always useful)
+    for (const alt of bgVariants) {
+      loaded.push({
+        img:    item.img,
+        result: { ...item.result, bg: alt.bg, logoBbox: item.result?.logoBbox || null },
+        _label: alt.label,
+      });
     }
 
     if (loaded.length > 0) {
       altState.altImages = loaded;
       document.getElementById('altModalSub').textContent =
-        `${loaded.length} alternatives found — click to select`;
+        loaded.length + ' variants found — click to select';
       renderAltGridWithImages(item, loaded);
     } else {
-      document.getElementById('altModalSub').textContent = 'No alternatives found — try regenerate';
+      grid.innerHTML = '<div style="color:var(--mt);font-size:12px;padding:20px;text-align:center;grid-column:1/-1">No alternatives found.<br>Try "Generate more options".</div>';
+      document.getElementById('altModalSub').textContent = 'No results — try generate';
     }
   } catch(e) {
-    document.getElementById('altModalSub').textContent = 'Could not load alternatives';
+    console.error('Alt picker error:', e);
+    document.getElementById('altModalSub').textContent = 'Error loading — try generate';
   }
+}
+
+/* Load image fast: probe first (no crossOrigin), then load for canvas */
+function loadImageFast(url) {
+  return new Promise(resolve => {
+    // Step 1: quick probe without crossOrigin
+    const probe = new Image();
+    const t1 = setTimeout(() => { probe.src=''; resolve(null); }, 7000);
+    probe.onload = () => {
+      clearTimeout(t1);
+      if (probe.naturalWidth < 32 || probe.naturalHeight < 32) { resolve(null); return; }
+      // Step 2: reload with crossOrigin for canvas
+      const full = new Image();
+      full.crossOrigin = 'anonymous';
+      const t2 = setTimeout(() => {
+        // Use tainted image — still renders visually
+        resolve(probe);
+      }, 4000);
+      full.onload  = () => { clearTimeout(t2); resolve(full); };
+      full.onerror = () => { clearTimeout(t2); resolve(probe); };
+      full.src = url;
+    };
+    probe.onerror = () => { clearTimeout(t1); resolve(null); };
+    probe.src = url;
+  });
 }
 
 /* Load image for canvas — tries crossOrigin, falls back to plain load */
@@ -1968,27 +2014,16 @@ function renderAltGrid(item) {
 }
 
 /* ── Regenerate more options (randomised) ── */
-document.getElementById('altRegen').addEventListener('click', () => {
+document.getElementById('altRegen').addEventListener('click', async () => {
   const item = S.files[altState.slotIdx];
   if (!item) return;
 
-  const base  = item.result;
-  const bgs   = ['#ffffff','#000000','#1a1a2e','#f4f4f5','#0f3460','#2d1515',
-                  '#1a0a00','#0a0a1a','#0a1a2a','#1a1218'];
-  const modes = ['logo','cover','blur','fit'];
-  const scales = [55, 65, 75, 80, 90, 100];
+  document.getElementById('altModalSub').textContent = 'Searching more variants…';
+  document.getElementById('altRegen').disabled = true;
 
-  altState.variants = Array.from({length:6}, (_,i) => ({
-    ...base,
-    bg:    bgs[Math.floor(Math.random()*bgs.length)],
-    scale: scales[Math.floor(Math.random()*scales.length)],
-    offY:  Math.round((Math.random()-0.5)*30),
-    mode:  i < 3 ? base.mode : modes[Math.floor(Math.random()*modes.length)],
-    logoBbox: i < 3 ? base.logoBbox : null,
-    _label: `Option ${i+1}`,
-  }));
-  altState.selectedVariant = 0;
-  renderAltGrid(item);
+  // Re-run the full search — AI will find different results on re-query
+  await openAltPicker(altState.slotIdx);
+  document.getElementById('altRegen').disabled = false;
 });
 
 /* ── Apply selected variant ── */
