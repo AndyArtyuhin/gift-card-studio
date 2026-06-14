@@ -866,16 +866,26 @@ function setZ(z){
 // Category definitions with curated search terms
 /* ── Known game titles → fetch cover art, not logo ── */
 const GAME_BRANDS = new Set([
-  'fortnite','minecraft','roblox','gta','grand theft auto','call of duty','cod',
-  'valorant','league of legends','lol','dota','dota 2','cs2','counter-strike',
-  'pubg','apex legends','overwatch','world of warcraft','wow','pokemon',
-  'fifa','ea fc','nba 2k','madden','the sims','cyberpunk','elden ring',
-  'god of war','spider-man','halo','zelda','mario','sonic','fifa',
-  'battlefield','rainbow six','siege','rocket league','among us',
-  'fall guys','genshin impact','honkai','clash of clans','clash royale',
-  'candy crush','angry birds','temple run','subway surfers',
+  // Shooters
+  'fortnite','call of duty','cod','valorant','apex legends','pubg','overwatch',
+  'battlefield','rainbow six','siege','halo','counter-strike','cs2','cs go',
+  'call of duty warzone','warzone','modern warfare','black ops',
+  // RPG/Adventure
+  'minecraft','roblox','gta','grand theft auto','cyberpunk','elden ring',
+  'god of war','spider-man','zelda','mario','sonic','final fantasy',
+  'assassins creed','red dead redemption','witcher','skyrim',
+  // MOBA/Online
+  'league of legends','lol','dota','dota 2','world of warcraft','wow',
+  'genshin impact','honkai star rail','honkai',
+  // Sports
+  'fifa','ea fc','nba 2k','madden','rocket league',
+  // Mobile/Casual
+  'clash of clans','clash royale','candy crush','angry birds',
+  'temple run','subway surfers','among us','fall guys',
+  // Platforms & Services
   'steam','epic games','playstation','xbox','nintendo','nintendo switch',
-  'game pass','ps plus','psn','xbox live','discord nitro',
+  'game pass','ps plus','psn','xbox live','discord nitro','twitch',
+  'ea play','ubisoft','activision','blizzard',
 ]);
 
 function isGameBrand(name) {
@@ -919,30 +929,61 @@ function loadImageCors(url) {
   });
 }
 
-/* ── SOURCE A: Wikimedia Commons image search (CORS ok, real SVG/PNG logos) ── */
+/* ── SOURCE A: Wikimedia Commons — diverse logo variants ── */
 async function searchWikimedia(brandName) {
   const results = [];
-  try {
-    // Search Wikimedia Commons for logo files
-    const q = encodeURIComponent(brandName + ' logo');
-    const url = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${q}&srnamespace=6&srlimit=8&format=json&origin=*`;
-    const res  = await fetch(url);
-    const data = await res.json();
-    const hits  = data?.query?.search || [];
-    for (const hit of hits) {
-      // Get actual file URL
-      const title = encodeURIComponent(hit.title);
-      const infoUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=${title}&prop=imageinfo&iiprop=url&format=json&origin=*`;
-      const infoRes  = await fetch(infoUrl);
-      const infoData = await infoRes.json();
-      const pages = Object.values(infoData?.query?.pages || {});
-      const imgUrl = pages[0]?.imageinfo?.[0]?.url;
-      if (imgUrl && imgUrl.match(/\.(png|svg|jpg|webp)/i)) {
-        results.push({ url: imgUrl, label: 'Wikimedia: ' + hit.title.replace('File:','').replace(/_/g,' ').substring(0,30) });
+  const seenStems = new Set(); // avoid same image at different sizes
+
+  // Try multiple search queries for diverse results
+  const queries = [
+    brandName + ' logo',
+    brandName + ' logo white',
+    brandName + ' wordmark',
+    brandName + ' icon',
+    brandName + ' symbol',
+  ];
+
+  for (const query of queries) {
+    if (results.length >= 5) break;
+    try {
+      const q   = encodeURIComponent(query);
+      const url = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${q}&srnamespace=6&srlimit=6&format=json&origin=*`;
+      const res  = await fetch(url);
+      const data = await res.json();
+      const hits  = data?.query?.search || [];
+
+      for (const hit of hits) {
+        if (results.length >= 5) break;
+
+        // Deduplicate by base filename stem (ignores size variants)
+        const stem = hit.title.replace('File:','').replace(/[-_]\d+px.*$/i,'').replace(/\.(png|svg|jpg|webp)$/i,'').toLowerCase().replace(/[^a-z]/g,'');
+        if (seenStems.has(stem)) continue;
+        seenStems.add(stem);
+
+        // Skip obvious non-logo files
+        if (/font|template|map|flag|coat|seal|stamp|button/i.test(hit.title)) continue;
+
+        try {
+          const title = encodeURIComponent(hit.title);
+          const infoUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=${title}&prop=imageinfo&iiprop=url|size&format=json&origin=*`;
+          const infoRes  = await fetch(infoUrl);
+          const infoData = await infoRes.json();
+          const pages = Object.values(infoData?.query?.pages || {});
+          const info  = pages[0]?.imageinfo?.[0];
+          const imgUrl = info?.url;
+
+          if (!imgUrl || !imgUrl.match(/\.(png|svg|jpg|webp)/i)) continue;
+          // Skip very small images (likely icons)
+          if (info?.width && info.width < 50) continue;
+
+          results.push({
+            url: imgUrl,
+            label: hit.title.replace('File:','').replace(/_/g,' ').replace(/\.(png|svg|jpg|webp)$/i,'').substring(0,35)
+          });
+        } catch(e) {}
       }
-      if (results.length >= 4) break;
-    }
-  } catch(e) {}
+    } catch(e) {}
+  }
   return results;
 }
 
@@ -1095,44 +1136,95 @@ async function fetchAltLogos(brandName) {
   return alts;
 }
 
-/* ── Fetch game cover art ── */
+/* ── Fetch game cover art — multiple real sources ── */
 async function fetchGameCover(gameName) {
   const alts = [];
+  const seen = new Set();
 
-  // Steam search via Steam store API (CORS ok via steam CDN)
+  async function tryGameCover(url, label) {
+    if (seen.has(url)) return;
+    seen.add(url);
+    const ok = await probeImageUrl(url, 5000);
+    if (ok) alts.push({ url, label, mode: 'cover', bg: '#000' });
+  }
+
+  // SOURCE 1: Steam store search — try multiple cover art types
   try {
     const q    = encodeURIComponent(gameName);
     const res  = await fetch(`https://store.steampowered.com/api/storesearch/?term=${q}&l=en&cc=us`);
     const data = await res.json();
-    const items = data?.items || [];
-    for (const item of items.slice(0, 4)) {
-      const cover = `https://cdn.akamai.steamstatic.com/steam/apps/${item.id}/header.jpg`;
-      const ok = await testImageUrl(cover);
-      if (ok) alts.push({ url: cover, label: `Steam: ${item.name}`, mode: 'cover', bg: '#000' });
+    const items = (data?.items || []).slice(0, 5);
+    for (const item of items) {
+      // header.jpg = landscape cover (460×215)
+      await tryGameCover(
+        `https://cdn.akamai.steamstatic.com/steam/apps/${item.id}/header.jpg`,
+        `Steam: ${item.name}`
+      );
+      // library_600x900.jpg = portrait poster
+      await tryGameCover(
+        `https://cdn.akamai.steamstatic.com/steam/apps/${item.id}/library_600x900.jpg`,
+        `Steam poster: ${item.name}`
+      );
+      // capsule_616x353.jpg = wide capsule
+      await tryGameCover(
+        `https://cdn.akamai.steamstatic.com/steam/apps/${item.id}/capsule_616x353.jpg`,
+        `Steam wide: ${item.name}`
+      );
+      if (alts.length >= 4) break;
     }
   } catch(e) {}
 
-  // RAWG API (public, no key for basic search)
+  // SOURCE 2: RAWG database (no key needed, public API)
   try {
     const q   = encodeURIComponent(gameName);
-    const res = await fetch(`https://api.rawg.io/api/games?search=${q}&page_size=4&key=`);
+    const res = await fetch(`https://api.rawg.io/api/games?search=${q}&page_size=5`);
     const data= await res.json();
-    for (const g of (data?.results || []).slice(0, 3)) {
+    for (const g of (data?.results || []).slice(0, 4)) {
       if (g.background_image) {
-        const ok = await testImageUrl(g.background_image);
-        if (ok) alts.push({ url: g.background_image, label: g.name, mode: 'cover', bg: '#000' });
+        await tryGameCover(g.background_image, g.name);
       }
+      // Also try screenshots if available
+      if (g.short_screenshots) {
+        for (const ss of g.short_screenshots.slice(0,2)) {
+          if (ss.image) await tryGameCover(ss.image, g.name + ' screenshot');
+        }
+      }
+      if (alts.length >= 6) break;
     }
   } catch(e) {}
 
-  // Picsum with game-like seeds as fallback (replace with real cover when found)
-  if (alts.length === 0) {
-    const seeds = [10, 42, 77, 99, 123];
-    for (const s of seeds) {
-      alts.push({ url: `https://picsum.photos/seed/${s}/1200/800`, label: `Art ${s}`, mode: 'cover', bg: '#000' });
-    }
+  // SOURCE 3: Ask AI to find real game cover URLs
+  if (alts.length < 3) {
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 600,
+          tools: [{type:'web_search_20250305', name:'web_search'}],
+          messages: [{role:'user', content:
+            'Find 4 official cover art image URLs for the game "' + gameName + '". ' +
+            'Search for official Steam store page, PlayStation Store, Xbox Store, or Epic Games. ' +
+            'Return ONLY a JSON array: [{"url":"https://...","label":"Cover art"},...] ' +
+            'Only direct image file URLs (.jpg .png .webp). No HTML pages.'
+          }]
+        })
+      });
+      const d = await resp.json();
+      const txt = (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+      const m = txt.match(/\[[\s\S]*?\]/);
+      if (m) {
+        const arr = JSON.parse(m[0]);
+        for (const item of arr.filter(x=>x.url&&/\.(jpg|png|webp)/i.test(x.url))) {
+          await tryGameCover(item.url, item.label || 'AI found');
+          if (alts.length >= 6) break;
+        }
+      }
+    } catch(e) {}
   }
 
+  // No Picsum fallback — if nothing found, return empty (show "no results" message)
   return alts;
 }
 
