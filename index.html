@@ -1086,6 +1086,51 @@ function officialPaths(domain) {
   ];
 }
 
+/* ── Google Custom Search API for Images ── */
+const GCSE_KEY = 'AIzaSyDvz9OrNRNAjoFlSvfXFfVbEjfL_uv9g60';
+const GCSE_CX  = 'd34eff78e521e4894';
+
+async function searchGoogleImages(brandName, maxResults=10) {
+  const results = [];
+  // Multiple queries for diversity
+  const queries = [
+    brandName + ' logo PNG transparent',
+    brandName + ' logo SVG official',
+    brandName + ' brand logo white background',
+  ];
+  const seen = new Set();
+
+  for (const q of queries) {
+    if (results.length >= maxResults) break;
+    try {
+      const url = 'https://www.googleapis.com/customsearch/v1'
+        + '?key=' + GCSE_KEY
+        + '&cx=' + GCSE_CX
+        + '&q=' + encodeURIComponent(q)
+        + '&searchType=image'
+        + '&imgType=clipart'
+        + '&num=5'
+        + '&safe=active';
+      const res  = await fetch(url);
+      const data = await res.json();
+      for (const item of (data.items || [])) {
+        if (!item.link || seen.has(item.link)) continue;
+        seen.add(item.link);
+        // Skip tiny images
+        const w = item.image?.width || 0;
+        if (w < 80) continue;
+        results.push({
+          url:   item.link,
+          label: item.title ? item.title.substring(0, 35) : 'Google',
+          bg:    '#ffffff',
+        });
+        if (results.length >= maxResults) break;
+      }
+    } catch(e) { console.warn('Google search error:', e.message); }
+  }
+  return results;
+}
+
 /* ════ MAIN: fetchAltLogos ════ */
 async function fetchAltLogos(brandName) {
   const core   = normaliseBrandName(brandName);
@@ -1108,11 +1153,11 @@ async function fetchAltLogos(brandName) {
     return false;
   }
 
-  // ── PRIORITY 1: AI web search (most diverse, real images) ──
-  const aiUrls = await searchLogoAI(core, domain);
-  for (const item of aiUrls) {
-    if (alts.length >= 5) break;
-    await tryAdd(item.url, item.label || 'Web found', item.bg || '#ffffff');
+  // ── PRIORITY 1: Google Images API (fast, diverse, real images) ──
+  const googleResults = await searchGoogleImages(core);
+  for (const item of googleResults) {
+    if (alts.length >= 6) break;
+    await tryAdd(item.url, item.label || 'Google', item.bg || '#ffffff');
   }
 
   // ── PRIORITY 2: Wikimedia Commons (free, diverse, CORS-ok) ──
@@ -1138,6 +1183,15 @@ async function fetchAltLogos(brandName) {
   for (const v of brandfetchVariants(domain)) {
     if (alts.length >= 9) break;
     await tryAdd(v.url, v.label, v.bg);
+  }
+
+  // ── PRIORITY 6: AI web search (fallback if Google didn't find enough) ──
+  if (alts.length < 5) {
+    const aiUrls = await searchLogoAI(core, domain);
+    for (const item of aiUrls) {
+      if (alts.length >= 9) break;
+      await tryAdd(item.url, item.label || 'AI found', item.bg || '#ffffff');
+    }
   }
 
   // ── ALWAYS: bg-color variants of current logo (instant, zero network) ──
