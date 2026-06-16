@@ -1092,13 +1092,15 @@ const GCSE_CX  = 'd34eff78e521e4894';
 
 async function searchGoogleImages(brandName, maxResults=10) {
   const results = [];
-  // Multiple queries for diversity
+  const seen    = new Set();
+
+  // Multiple diverse queries
   const queries = [
     brandName + ' logo PNG transparent',
-    brandName + ' logo SVG official',
-    brandName + ' brand logo white background',
+    brandName + ' logo SVG official brand guidelines',
+    brandName + ' logo black white version',
+    brandName + ' icon app logo square',
   ];
-  const seen = new Set();
 
   for (const q of queries) {
     if (results.length >= maxResults) break;
@@ -1108,20 +1110,42 @@ async function searchGoogleImages(brandName, maxResults=10) {
         + '&cx=' + GCSE_CX
         + '&q=' + encodeURIComponent(q)
         + '&searchType=image'
-        + '&imgType=clipart'
-        + '&num=5'
-        + '&safe=active';
+        + '&num=6'
+        + '&safe=active'
+        + '&imgSize=LARGE'
+        + '&rights=cc_publicdomain,cc_attribute';
       const res  = await fetch(url);
+      if (!res.ok) {
+        console.warn('Google API', res.status, await res.text().catch(()=>''));
+        // If rights filter returns nothing, retry without it
+        const url2 = url.replace('&rights=cc_publicdomain,cc_attribute', '');
+        const res2 = await fetch(url2);
+        if (!res2.ok) continue;
+        const data2 = await res2.json();
+        for (const item of (data2.items || [])) {
+          if (!item.link || seen.has(item.link)) continue;
+          seen.add(item.link);
+          const w = item.image?.width || 0;
+          if (w < 60) continue;
+          results.push({
+            url:   item.link,
+            label: (item.title || 'Google').substring(0, 35),
+            bg:    '#ffffff',
+          });
+          if (results.length >= maxResults) break;
+        }
+        continue;
+      }
       const data = await res.json();
+      console.log('[Google]', q, '→', (data.items||[]).length, 'results');
       for (const item of (data.items || [])) {
         if (!item.link || seen.has(item.link)) continue;
         seen.add(item.link);
-        // Skip tiny images
         const w = item.image?.width || 0;
-        if (w < 80) continue;
+        if (w < 60) continue;
         results.push({
           url:   item.link,
-          label: item.title ? item.title.substring(0, 35) : 'Google',
+          label: (item.title || 'Google').substring(0, 35),
           bg:    '#ffffff',
         });
         if (results.length >= maxResults) break;
