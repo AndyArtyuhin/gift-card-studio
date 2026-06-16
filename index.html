@@ -1169,38 +1169,48 @@ async function fetchAltLogos(brandName) {
     return false;
   }
 
-  // ═══ SOURCE 1: Wikimedia Commons — 5 diverse queries ═══
+  // ═══ SOURCE 1: Google Images via /api/search proxy ═══
+  try {
+    const googleResults = await searchGoogleImages(core, 12);
+    for (const item of googleResults) {
+      if (alts.length >= 8) break;
+      await tryAdd(item.url, item.label || 'Google', item.bg || '#ffffff');
+    }
+    console.log('[Alt] Google found:', alts.length);
+  } catch(e) { console.warn('[Alt] Google failed:', e.message); }
+
+  // ═══ SOURCE 2: Wikimedia Commons — 7 diverse queries ═══
   const wikiResults = await searchWikimedia(core);
   for (const item of wikiResults) {
-    if (alts.length >= 5) break;
+    if (alts.length >= 10) break;
     await tryAdd(item.url, item.label, '#ffffff');
   }
+  console.log('[Alt] After Wikimedia:', alts.length);
 
-  // ═══ SOURCE 2: Wikipedia article image ═══
+  // ═══ SOURCE 3: Wikipedia article image ═══
   const wpResults = await searchWikipediaBrand(core);
   for (const item of wpResults) {
     await tryAdd(item.url, item.label, '#f4f4f5');
   }
 
-  // ═══ SOURCE 3: Google CSE (if configured) ═══
-  if (GCSE_KEY && GCSE_CX) {
-    try {
-      const googleResults = await searchGoogleImages(core, 10);
-      for (const item of googleResults) {
-        if (alts.length >= 10) break;
-        await tryAdd(item.url, item.label || 'Google', item.bg || '#ffffff');
-      }
-    } catch(e) {}
+  // ═══ SOURCE 4: Brandfetch (multiple crops) ═══
+  if (alts.length < 8) {
+    await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/800/h/200', 'Brandfetch wide', '#ffffff');
+    await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/400/h/400', 'Brandfetch square', '#ffffff');
   }
 
-  // ═══ SOURCE 4: Brandfetch — one variant only ═══
-  if (alts.length < 6) {
-    await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/800/h/400', 'Brandfetch', '#ffffff');
+  // ═══ SOURCE 5: DuckDuckGo icon ═══
+  if (alts.length < 10) {
+    await tryAdd('https://icons.duckduckgo.com/ip3/' + domain + '.ico', 'DuckDuckGo', '#ffffff');
   }
 
-  // ═══ SOURCE 5: Clearbit ═══
-  if (alts.length < 7) {
-    await tryAdd('https://logo.clearbit.com/' + domain + '?size=512', 'Clearbit', '#ffffff');
+  // ═══ SOURCE 6: Official site common paths ═══
+  if (alts.length < 10) {
+    const paths = ['/apple-touch-icon.png','/favicon-32x32.png','/logo.png','/logo.svg','/images/logo.png'];
+    for (const p of paths) {
+      if (alts.length >= 10) break;
+      await tryAdd('https://' + domain + p, 'Site: ' + p.split('/').pop(), '#ffffff');
+    }
   }
 
   // ═══ On black + On white ═══
