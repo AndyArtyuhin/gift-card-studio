@@ -1097,32 +1097,30 @@ async function searchGoogleImages(brandName, maxResults=10) {
   const results = [];
   const seen    = new Set();
 
-  // Universal approach: same base query, different API filters for diversity
-  // Each variant asks Google for a DIFFERENT type of image
   const variants = [
-    { q: brandName + ' logo',       extra: '' },                              // default
-    { q: brandName + ' logo',       extra: '&start=6' },                      // page 2
-    { q: brandName + ' logo PNG',   extra: '&imgColorType=trans' },           // transparent
-    { q: brandName + ' logo',       extra: '&imgDominantColor=black' },       // dark versions
-    { q: brandName + ' logo',       extra: '&imgDominantColor=white' },       // light versions
+    { q: brandName + ' logo',       extra: '' },
+    { q: brandName + ' logo',       extra: '&start=6' },
+    { q: brandName + ' logo PNG',   extra: '&imgColorType=trans' },
+    { q: brandName + ' logo',       extra: '&imgDominantColor=black' },
+    { q: brandName + ' logo',       extra: '&imgDominantColor=white' },
   ];
 
   for (const v of variants) {
     if (results.length >= maxResults) break;
     try {
-      const url = 'https://www.googleapis.com/customsearch/v1'
-        + '?key=' + GCSE_KEY
-        + '&cx=' + GCSE_CX
-        + '&q=' + encodeURIComponent(v.q)
-        + '&searchType=image'
-        + '&num=4'
-        + v.extra;
+      // Use our serverless proxy — no CORS issues, no exposed API key
+      const params = new URLSearchParams({ q: v.q });
+      if (v.extra.includes('start='))          params.set('start', '6');
+      if (v.extra.includes('imgColorType='))   params.set('imgColorType', 'trans');
+      if (v.extra.includes('imgDominantColor=black')) params.set('imgDominantColor', 'black');
+      if (v.extra.includes('imgDominantColor=white')) params.set('imgDominantColor', 'white');
 
+      const url = '/api/search?' + params.toString();
       const res  = await fetch(url);
       const data = await res.json();
 
       if (data.error) {
-        console.warn('[Google] API error:', data.error.message);
+        console.warn('[Google]', data.error.message || data.error);
         continue;
       }
       console.log('[Google]', v.q, v.extra || '(default)', '→', (data.items||[]).length, 'results');
