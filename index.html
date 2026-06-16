@@ -1169,51 +1169,56 @@ async function fetchAltLogos(brandName) {
     return false;
   }
 
-  // ═══ SOURCE 1: Google Images via /api/search proxy ═══
+  // ═══ SOURCE 1: Brandfetch — high quality logo CDN (multiple crops) ═══
+  // Different sizes and ratios = visually different logos
+  await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/800/h/200',  'Brandfetch wide',    '#ffffff');
+  await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/400/h/400',  'Brandfetch square',  '#ffffff');
+  await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/512/h/512',  'Brandfetch large',   '#000000');
+  await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/1200/h/300', 'Brandfetch banner',  '#f4f4f5');
+  await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/200/h/200',  'Brandfetch icon',    '#ffffff');
+  console.log('[Alt] After Brandfetch:', alts.length);
+
+  // ═══ SOURCE 2: Google Images via /api/search proxy ═══
   try {
-    const googleResults = await searchGoogleImages(core, 12);
+    const googleResults = await searchGoogleImages(core, 10);
     for (const item of googleResults) {
-      if (alts.length >= 8) break;
+      if (alts.length >= 10) break;
       await tryAdd(item.url, item.label || 'Google', item.bg || '#ffffff');
     }
-    console.log('[Alt] Google found:', alts.length);
+    console.log('[Alt] After Google:', alts.length);
   } catch(e) { console.warn('[Alt] Google failed:', e.message); }
 
-  // ═══ SOURCE 2: Wikimedia Commons — 7 diverse queries ═══
+  // ═══ SOURCE 3: Wikimedia Commons — 7 diverse queries ═══
   const wikiResults = await searchWikimedia(core);
   for (const item of wikiResults) {
-    if (alts.length >= 10) break;
+    if (alts.length >= 12) break;
     await tryAdd(item.url, item.label, '#ffffff');
   }
   console.log('[Alt] After Wikimedia:', alts.length);
 
-  // ═══ SOURCE 3: Wikipedia article image ═══
+  // ═══ SOURCE 4: Wikipedia article image ═══
   const wpResults = await searchWikipediaBrand(core);
   for (const item of wpResults) {
+    if (alts.length >= 12) break;
     await tryAdd(item.url, item.label, '#f4f4f5');
   }
 
-  // ═══ SOURCE 4: Brandfetch (multiple crops) ═══
-  if (alts.length < 8) {
-    await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/800/h/200', 'Brandfetch wide', '#ffffff');
-    await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/400/h/400', 'Brandfetch square', '#ffffff');
-  }
-
-  // ═══ SOURCE 5: DuckDuckGo icon ═══
-  if (alts.length < 10) {
-    await tryAdd('https://icons.duckduckgo.com/ip3/' + domain + '.ico', 'DuckDuckGo', '#ffffff');
+  // ═══ SOURCE 5: Clearbit (different sizes) ═══
+  if (alts.length < 12) {
+    await tryAdd('https://logo.clearbit.com/' + domain + '?size=512', 'Clearbit HD',   '#ffffff');
+    await tryAdd('https://logo.clearbit.com/' + domain + '?size=128', 'Clearbit icon', '#000000');
   }
 
   // ═══ SOURCE 6: Official site common paths ═══
-  if (alts.length < 10) {
-    const paths = ['/apple-touch-icon.png','/favicon-32x32.png','/logo.png','/logo.svg','/images/logo.png'];
+  if (alts.length < 12) {
+    const paths = ['/apple-touch-icon.png','/logo.png','/logo.svg','/images/logo.png','/assets/logo.png'];
     for (const p of paths) {
-      if (alts.length >= 10) break;
+      if (alts.length >= 12) break;
       await tryAdd('https://' + domain + p, 'Site: ' + p.split('/').pop(), '#ffffff');
     }
   }
 
-  // ═══ On black + On white ═══
+    // ═══ On black + On white ═══
   alts.push({ url: null, label: 'On black', bg: '#000000', mode: 'logo', useCurrentImg: true });
   alts.push({ url: null, label: 'On white', bg: '#ffffff', mode: 'logo', useCurrentImg: true });
 
