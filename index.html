@@ -953,58 +953,61 @@ function loadImageCors(url) {
 /* ── SOURCE A: Wikimedia Commons — diverse logo variants ── */
 async function searchWikimedia(brandName) {
   const results = [];
-  const seenStems = new Set(); // avoid same image at different sizes
+  const seenStems = new Set();
 
-  // Try multiple search queries for diverse results
+  // 7 diverse queries — each finds different types of logos
   const queries = [
     brandName + ' logo',
     brandName + ' logo white',
     brandName + ' wordmark',
     brandName + ' icon',
     brandName + ' symbol',
+    brandName + ' brand',
+    brandName + ' company logo',
   ];
 
   for (const query of queries) {
-    if (results.length >= 5) break;
+    if (results.length >= 8) break;
     try {
       const q   = encodeURIComponent(query);
-      const url = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${q}&srnamespace=6&srlimit=6&format=json&origin=*`;
+      const url = 'https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=' + q + '&srnamespace=6&srlimit=8&format=json&origin=*';
       const res  = await fetch(url);
       const data = await res.json();
       const hits  = data?.query?.search || [];
 
       for (const hit of hits) {
-        if (results.length >= 5) break;
+        if (results.length >= 8) break;
 
-        // Deduplicate by base filename stem (ignores size variants)
-        const stem = hit.title.replace('File:','').replace(/[-_]\d+px.*$/i,'').replace(/\.(png|svg|jpg|webp)$/i,'').toLowerCase().replace(/[^a-z]/g,'');
+        // Deduplicate by base filename stem
+        const rawTitle = hit.title.replace('File:','');
+        const stem = rawTitle.replace(/[-_]\d+px.*$/i,'').replace(/\.(png|svg|jpg|webp)$/i,'').toLowerCase().replace(/[^a-z0-9]/g,'');
         if (seenStems.has(stem)) continue;
         seenStems.add(stem);
 
-        // Skip obvious non-logo files
-        if (/font|template|map|flag|coat|seal|stamp|button/i.test(hit.title)) continue;
+        // Skip non-logo files
+        if (/font|template|map|flag|coat|seal|stamp|button|screenshot|photo/i.test(rawTitle)) continue;
 
         try {
           const title = encodeURIComponent(hit.title);
-          const infoUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=${title}&prop=imageinfo&iiprop=url|size&format=json&origin=*`;
+          const infoUrl = 'https://commons.wikimedia.org/w/api.php?action=query&titles=' + title + '&prop=imageinfo&iiprop=url|size&format=json&origin=*';
           const infoRes  = await fetch(infoUrl);
           const infoData = await infoRes.json();
           const pages = Object.values(infoData?.query?.pages || {});
           const info  = pages[0]?.imageinfo?.[0];
           const imgUrl = info?.url;
 
-          if (!imgUrl || !imgUrl.match(/\.(png|svg|jpg|webp)/i)) continue;
-          // Skip very small images (likely icons)
+          if (!imgUrl || !/\.(png|svg|jpg|webp)/i.test(imgUrl)) continue;
           if (info?.width && info.width < 50) continue;
 
-          results.push({
-            url: imgUrl,
-            label: hit.title.replace('File:','').replace(/_/g,' ').replace(/\.(png|svg|jpg|webp)$/i,'').substring(0,35)
-          });
+          const label = rawTitle.replace(/_/g,' ').replace(/\.(png|svg|jpg|webp)$/i,'').substring(0,40);
+          results.push({ url: imgUrl, label });
+          console.log('[Wikimedia] Found:', label);
         } catch(e) {}
       }
     } catch(e) {}
   }
+
+  console.log('[Wikimedia] Total:', results.length, 'unique logos for', brandName);
   return results;
 }
 
@@ -1162,51 +1165,38 @@ async function fetchAltLogos(brandName) {
     return false;
   }
 
-  // ═══ STEP 1: AI finds the MAIN official logo (searches entire internet) ═══
-  // This guarantees we get the canonical brand logo, not sub-brands
-  try {
-    const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 800,
-        tools: [{type:'web_search_20250305', name:'web_search'}],
-        messages: [{role:'user', content:
-          'Search for "' + core + ' logo" and find 3 DIFFERENT direct image URLs of the MAIN official "' + core + '" brand logo. ' +
-          'NOT sub-brands, NOT subsidiaries — just the primary "' + core + '" logo that appears when you Google "' + core + ' logo". ' +
-          'Find: 1) Full logo (text + symbol) on white/transparent, 2) Dark/inverted version, 3) Icon/symbol only version. ' +
-          'Return ONLY JSON array: [{"url":"https://...image.png","label":"Official logo","bg":"#ffffff"},...] ' +
-          'Direct image URLs only (.png .jpg .svg .webp). No HTML pages.'
-        }]
-      })
-    });
-    const aiData = await aiResp.json();
-    const aiTxt = (aiData.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
-    const aiMatch = aiTxt.match(/\[[\s\S]*?\]/);
-    if (aiMatch) {
-      const arr = JSON.parse(aiMatch[0]);
-      for (const item of arr.filter(x=>x.url&&/\.(png|jpg|svg|webp)/i.test(x.url))) {
-        await tryAdd(item.url, item.label || 'Official logo', item.bg || '#ffffff');
-      }
-    }
-    console.log('[AI] Found', alts.length, 'official logos for', core);
-  } catch(e) { console.warn('[AI] logo search failed:', e.message); }
-
-  // ═══ STEP 2: Google CSE for more diverse variants ═══
-  const googleResults = await searchGoogleImages(core, 14);
-  for (const item of googleResults) {
-    if (alts.length >= 10) break;
-    await tryAdd(item.url, item.label || 'Google', item.bg || '#ffffff');
+  // ═══ SOURCE 1: Wikimedia Commons — 5 diverse queries ═══
+  const wikiResults = await searchWikimedia(core);
+  for (const item of wikiResults) {
+    if (alts.length >= 5) break;
+    await tryAdd(item.url, item.label, '#ffffff');
   }
 
-  // ═══ STEP 3: Wikimedia if still < 5 ═══
-  if (alts.length < 5) {
-    const wikiResults = await searchWikimedia(core);
-    for (const item of wikiResults) {
-      if (alts.length >= 8) break;
-      await tryAdd(item.url, item.label, '#ffffff');
-    }
+  // ═══ SOURCE 2: Wikipedia article image ═══
+  const wpResults = await searchWikipediaBrand(core);
+  for (const item of wpResults) {
+    await tryAdd(item.url, item.label, '#f4f4f5');
+  }
+
+  // ═══ SOURCE 3: Google CSE (if configured) ═══
+  if (GCSE_KEY && GCSE_CX) {
+    try {
+      const googleResults = await searchGoogleImages(core, 10);
+      for (const item of googleResults) {
+        if (alts.length >= 10) break;
+        await tryAdd(item.url, item.label || 'Google', item.bg || '#ffffff');
+      }
+    } catch(e) {}
+  }
+
+  // ═══ SOURCE 4: Brandfetch — one variant only ═══
+  if (alts.length < 6) {
+    await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/800/h/400', 'Brandfetch', '#ffffff');
+  }
+
+  // ═══ SOURCE 5: Clearbit ═══
+  if (alts.length < 7) {
+    await tryAdd('https://logo.clearbit.com/' + domain + '?size=512', 'Clearbit', '#ffffff');
   }
 
   // ═══ On black + On white ═══
