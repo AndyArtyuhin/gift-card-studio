@@ -1169,31 +1169,7 @@ async function fetchAltLogos(brandName) {
     return false;
   }
 
-  // ═══ SOURCE 1: Brandfetch — high quality logo CDN (parallel probing) ═══
-  const bfVariants = [
-    { url: 'https://cdn.brandfetch.io/' + domain + '/w/800/h/200',  label: 'Brandfetch wide',    bg: '#ffffff' },
-    { url: 'https://cdn.brandfetch.io/' + domain + '/w/400/h/400',  label: 'Brandfetch square',  bg: '#ffffff' },
-    { url: 'https://cdn.brandfetch.io/' + domain + '/w/512/h/512',  label: 'Brandfetch large',   bg: '#000000' },
-    { url: 'https://cdn.brandfetch.io/' + domain + '/w/1200/h/300', label: 'Brandfetch banner',  bg: '#f4f4f5' },
-    { url: 'https://cdn.brandfetch.io/' + domain + '/w/200/h/200',  label: 'Brandfetch icon',    bg: '#ffffff' },
-  ];
-
-  // Probe all in parallel — 5x faster
-  const bfResults = await Promise.allSettled(
-    bfVariants.map(v => probeImageUrl(v.url).then(ok => ({ v, ok })))
-  );
-  for (const r of bfResults) {
-    if (r.status === 'fulfilled' && r.value.ok) {
-      const { v } = r.value;
-      if (!seen.has(v.url)) {
-        seen.add(v.url);
-        alts.push({ url: v.url, label: v.label, bg: v.bg, mode: 'logo' });
-      }
-    }
-  }
-  console.log('[Alt] After Brandfetch:', alts.length);
-
-  // ═══ SOURCE 2: Logo.dev — premium logo CDN (500k req/mo free) ═══
+  // ═══ SOURCE 1: Logo.dev — premium logo CDN (500k req/mo free) ═══
   const LOGODEV_TOKEN = 'pk_f_Xq6W7bTMmM_bckjU7c_Q';
   const logodevVariants = [
     { url: 'https://img.logo.dev/' + domain + '?token=' + LOGODEV_TOKEN + '&size=512&format=png&retina=true',                label: 'Logo.dev HD',     bg: '#ffffff' },
@@ -1215,6 +1191,29 @@ async function fetchAltLogos(brandName) {
     }
   }
   console.log('[Alt] After Logo.dev:', alts.length);
+
+  // ═══ SOURCE 2: Brandfetch — high quality logo CDN (parallel probing) ═══
+  const bfVariants = [
+    { url: 'https://cdn.brandfetch.io/' + domain + '/w/800/h/200',  label: 'Brandfetch wide',    bg: '#ffffff' },
+    { url: 'https://cdn.brandfetch.io/' + domain + '/w/400/h/400',  label: 'Brandfetch square',  bg: '#ffffff' },
+    { url: 'https://cdn.brandfetch.io/' + domain + '/w/512/h/512',  label: 'Brandfetch large',   bg: '#000000' },
+    { url: 'https://cdn.brandfetch.io/' + domain + '/w/1200/h/300', label: 'Brandfetch banner',  bg: '#f4f4f5' },
+    { url: 'https://cdn.brandfetch.io/' + domain + '/w/200/h/200',  label: 'Brandfetch icon',    bg: '#ffffff' },
+  ];
+
+  const bfResults = await Promise.allSettled(
+    bfVariants.map(v => probeImageUrl(v.url).then(ok => ({ v, ok })))
+  );
+  for (const r of bfResults) {
+    if (r.status === 'fulfilled' && r.value.ok) {
+      const { v } = r.value;
+      if (!seen.has(v.url)) {
+        seen.add(v.url);
+        alts.push({ url: v.url, label: v.label, bg: v.bg, mode: 'logo' });
+      }
+    }
+  }
+  console.log('[Alt] After Brandfetch:', alts.length);
 
   // ═══ SOURCE 3: Google Images via /api/search proxy ═══
   try {
@@ -1865,14 +1864,15 @@ async function findBrandLogo(name, apiKey) {
     }
   }
 
-  // Step 3–7: Try all logo sources
+  // Step 3–7: Try all logo sources — Logo.dev FIRST (premium quality)
+  const LOGODEV_TOKEN = 'pk_f_Xq6W7bTMmM_bckjU7c_Q';
   const sources = [
-    apiKey ? { url:`https://img.logo.dev/${entry.domain}?token=${apiKey}&size=200&format=png`, src:'logo.dev' } : null,
+    { url:`https://img.logo.dev/${entry.domain}?token=${LOGODEV_TOKEN}&size=512&format=png&retina=true`, src:'Logo.dev' },
     { url:`https://cdn.brandfetch.io/${entry.domain}/w/400/h/400`, src:'Brandfetch' },
-    { url:`https://logo.clearbit.com/${entry.domain}`, src:'Clearbit' },
+    { url:`https://logo.clearbit.com/${entry.domain}?size=512`, src:'Clearbit' },
     { url:`https://icons.duckduckgo.com/ip3/${entry.domain}.ico`, src:'DuckDuckGo' },
     { url:`https://www.google.com/s2/favicons?sz=256&domain_url=${entry.domain}`, src:'Google' },
-  ].filter(Boolean);
+  ];
 
   for (const s of sources) {
     const ok = await testImageUrl(s.url);
