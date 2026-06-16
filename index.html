@@ -1193,7 +1193,30 @@ async function fetchAltLogos(brandName) {
   }
   console.log('[Alt] After Brandfetch:', alts.length);
 
-  // ═══ SOURCE 2: Google Images via /api/search proxy ═══
+  // ═══ SOURCE 2: Logo.dev — premium logo CDN (500k req/mo free) ═══
+  const LOGODEV_TOKEN = 'pk_f_Xq6W7bTMmM_bckjU7c_Q';
+  const logodevVariants = [
+    { url: 'https://img.logo.dev/' + domain + '?token=' + LOGODEV_TOKEN + '&size=512&format=png&retina=true',                label: 'Logo.dev HD',     bg: '#ffffff' },
+    { url: 'https://img.logo.dev/' + domain + '?token=' + LOGODEV_TOKEN + '&size=512&format=png&theme=dark',                 label: 'Logo.dev dark',   bg: '#000000' },
+    { url: 'https://img.logo.dev/' + domain + '?token=' + LOGODEV_TOKEN + '&size=512&format=png&theme=light',                label: 'Logo.dev light',  bg: '#ffffff' },
+    { url: 'https://img.logo.dev/' + domain + '?token=' + LOGODEV_TOKEN + '&size=256&format=png',                            label: 'Logo.dev icon',   bg: '#f4f4f5' },
+  ];
+
+  const ldResults = await Promise.allSettled(
+    logodevVariants.map(v => probeImageUrl(v.url).then(ok => ({ v, ok })))
+  );
+  for (const r of ldResults) {
+    if (r.status === 'fulfilled' && r.value.ok) {
+      const { v } = r.value;
+      if (!seen.has(v.url)) {
+        seen.add(v.url);
+        alts.push({ url: v.url, label: v.label, bg: v.bg, mode: 'logo' });
+      }
+    }
+  }
+  console.log('[Alt] After Logo.dev:', alts.length);
+
+  // ═══ SOURCE 3: Google Images via /api/search proxy ═══
   try {
     const googleResults = await searchGoogleImages(core, 10);
     for (const item of googleResults) {
