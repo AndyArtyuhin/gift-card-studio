@@ -910,8 +910,13 @@ const GAME_BRANDS = new Set([
 ]);
 
 function isGameBrand(name) {
-  const n = name.toLowerCase().trim();
-  return GAME_BRANDS.has(n) || GAME_BRANDS.has(normaliseBrandName(n).toLowerCase());
+  const n = normaliseBrandName(name).toLowerCase().trim();
+  if (GAME_BRANDS.has(n)) return true;
+  // Partial match: "cyberpunk 2077" matches "cyberpunk", "call of duty warzone" matches "call of duty"
+  for (const g of GAME_BRANDS) {
+    if (n.startsWith(g) || g.startsWith(n)) return true;
+  }
+  return false;
 }
 
 /* ── Fetch alternative logo images for a brand ── */
@@ -1216,83 +1221,52 @@ async function fetchGameCover(gameName) {
     if (ok) alts.push({ url, label, mode: 'cover', bg: '#000' });
   }
 
-  // SOURCE 1: Steam store search — try multiple cover art types
+  // SOURCE 1: Google via proxy — landscape game covers
+  try {
+    const queries = [
+      gameName + ' game cover art',
+      gameName + ' game banner wallpaper landscape',
+      gameName + ' game screenshot',
+    ];
+    for (const q of queries) {
+      if (alts.length >= 6) break;
+      const res = await fetch('/api/search?q=' + encodeURIComponent(q));
+      const data = await res.json();
+      for (const item of (data.items || [])) {
+        if (alts.length >= 6) break;
+        const w = item.image?.width || 0, h = item.image?.height || 0;
+        if (w > h * 1.1 && w > 200) { // landscape + decent size
+          await tryGameCover(item.link, (item.title || '').substring(0, 35));
+        }
+      }
+    }
+  } catch(e) {}
+
+  // SOURCE 2: Steam covers (multiple formats)
   try {
     const q    = encodeURIComponent(gameName);
-    const res  = await fetch(`https://store.steampowered.com/api/storesearch/?term=${q}&l=en&cc=us`);
+    const res  = await fetch('https://store.steampowered.com/api/storesearch/?term=' + q + '&l=en&cc=us');
     const data = await res.json();
-    const items = (data?.items || []).slice(0, 5);
-    for (const item of items) {
-      // header.jpg = landscape cover (460×215)
+    for (const item of (data?.items || []).slice(0, 3)) {
       await tryGameCover(
-        `https://cdn.akamai.steamstatic.com/steam/apps/${item.id}/header.jpg`,
-        `Steam: ${item.name}`
+        'https://cdn.akamai.steamstatic.com/steam/apps/' + item.id + '/header.jpg',
+        'Steam: ' + item.name
       );
-      // library_600x900.jpg = portrait poster
       await tryGameCover(
-        `https://cdn.akamai.steamstatic.com/steam/apps/${item.id}/library_600x900.jpg`,
-        `Steam poster: ${item.name}`
+        'https://cdn.akamai.steamstatic.com/steam/apps/' + item.id + '/capsule_616x353.jpg',
+        'Steam wide: ' + item.name
       );
-      // capsule_616x353.jpg = wide capsule
-      await tryGameCover(
-        `https://cdn.akamai.steamstatic.com/steam/apps/${item.id}/capsule_616x353.jpg`,
-        `Steam wide: ${item.name}`
-      );
-      if (alts.length >= 4) break;
     }
   } catch(e) {}
 
-  // SOURCE 2: RAWG database (no key needed, public API)
+  // SOURCE 3: Wikimedia game art
   try {
-    const q   = encodeURIComponent(gameName);
-    const res = await fetch(`https://api.rawg.io/api/games?search=${q}&page_size=5`);
-    const data= await res.json();
-    for (const g of (data?.results || []).slice(0, 4)) {
-      if (g.background_image) {
-        await tryGameCover(g.background_image, g.name);
-      }
-      // Also try screenshots if available
-      if (g.short_screenshots) {
-        for (const ss of g.short_screenshots.slice(0,2)) {
-          if (ss.image) await tryGameCover(ss.image, g.name + ' screenshot');
-        }
-      }
-      if (alts.length >= 6) break;
+    const wikiResults = await searchWikimedia(gameName + ' game');
+    for (const item of wikiResults.slice(0, 3)) {
+      await tryGameCover(item.url, item.label);
     }
   } catch(e) {}
 
-  // SOURCE 3: Ask AI to find real game cover URLs
-  if (alts.length < 3) {
-    try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 600,
-          tools: [{type:'web_search_20250305', name:'web_search'}],
-          messages: [{role:'user', content:
-            'Find 4 official cover art image URLs for the game "' + gameName + '". ' +
-            'Search for official Steam store page, PlayStation Store, Xbox Store, or Epic Games. ' +
-            'Return ONLY a JSON array: [{"url":"https://...","label":"Cover art"},...] ' +
-            'Only direct image file URLs (.jpg .png .webp). No HTML pages.'
-          }]
-        })
-      });
-      const d = await resp.json();
-      const txt = (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
-      const m = txt.match(/\[[\s\S]*?\]/);
-      if (m) {
-        const arr = JSON.parse(m[0]);
-        for (const item of arr.filter(x=>x.url&&/\.(jpg|png|webp)/i.test(x.url))) {
-          await tryGameCover(item.url, item.label || 'AI found');
-          if (alts.length >= 6) break;
-        }
-      }
-    } catch(e) {}
-  }
-
-  // No Picsum fallback — if nothing found, return empty (show "no results" message)
   return alts;
 }
 
@@ -1702,32 +1676,58 @@ async function findBrandLogo(name, apiKey) {
   const entry = { name, core, domain: null, logoUrl: null, found: false };
   const key   = core.toLowerCase().trim();
 
-  // For games: search Steam for cover art instead of logo
+  // For games: search for horizontal cover art
   if (isGameBrand(name)) {
+    // Try Google via proxy: search for landscape game cover
     try {
-      const q   = encodeURIComponent(core);
-      const res = await fetch(`https://store.steampowered.com/api/storesearch/?term=${q}&l=en&cc=us`);
-      const data= await res.json();
+      const res = await fetch('/api/search?q=' + encodeURIComponent(core + ' game cover art horizontal'));
+      const data = await res.json();
+      const items = (data.items || []).filter(i => {
+        const w = i.image?.width || 0, h = i.image?.height || 0;
+        return w > h * 1.2; // landscape only
+      });
+      if (items.length > 0) {
+        entry.logoUrl  = items[0].link;
+        entry.source   = 'Google';
+        entry.found    = true;
+        entry.isGame   = true;
+        return entry;
+      }
+    } catch(e) { console.warn('Google game cover search failed:', e.message); }
+
+    // Try Steam header (landscape 460×215)
+    try {
+      const q    = encodeURIComponent(core);
+      const res  = await fetch('https://store.steampowered.com/api/storesearch/?term=' + q + '&l=en&cc=us');
+      const data = await res.json();
       const first = data?.items?.[0];
       if (first) {
-        const coverUrl = `https://cdn.akamai.steamstatic.com/steam/apps/${first.id}/header.jpg`;
-        const ok = await testImageUrl(coverUrl);
+        const coverUrl = 'https://cdn.akamai.steamstatic.com/steam/apps/' + first.id + '/header.jpg';
+        const ok = await probeImageUrl(coverUrl);
         if (ok) {
-          entry.logoUrl  = coverUrl;
-          entry.source   = 'Steam';
-          entry.found    = true;
-          entry.isGame   = true;
-          entry.domain   = 'store.steampowered.com';
+          entry.logoUrl = coverUrl;
+          entry.source  = 'Steam';
+          entry.found   = true;
+          entry.isGame  = true;
           return entry;
         }
       }
     } catch(e) {}
-    // Fallback: use picsum landscape if Steam fails
-    const seed = Math.abs(core.split('').reduce((s,c)=>s+c.charCodeAt(0),0)) % 500;
-    entry.logoUrl = `https://picsum.photos/seed/${seed}/1200/800`;
-    entry.source  = 'Picsum';
-    entry.found   = true;
-    entry.isGame  = true;
+
+    // Try Wikimedia for game art
+    try {
+      const wikiResults = await searchWikimedia(core + ' game');
+      if (wikiResults.length > 0) {
+        entry.logoUrl = wikiResults[0].url;
+        entry.source  = 'Wikimedia';
+        entry.found   = true;
+        entry.isGame  = true;
+        return entry;
+      }
+    } catch(e) {}
+
+    // No fallback to random images — return not found
+    entry.isGame = true;
     return entry;
   }
 
