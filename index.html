@@ -1158,61 +1158,29 @@ async function fetchAltLogos(brandName) {
     if (!url || seen.has(url)) return false;
     seen.add(url);
     const ok = await probeImageUrl(url);
-    if (ok) {
-      alts.push({ url, label, bg: bg || '#ffffff', mode });
-      return true;
-    }
+    if (ok) { alts.push({ url, label, bg: bg || '#ffffff', mode }); return true; }
     return false;
   }
 
-  // ── PRIORITY 1: Google Images API (fast, diverse, real images) ──
-  const googleResults = await searchGoogleImages(core, 12);
+  // ═══ ALL SLOTS GO TO GOOGLE — maximum diversity ═══
+  const googleResults = await searchGoogleImages(core, 14);
   for (const item of googleResults) {
-    if (alts.length >= 8) break;
+    if (alts.length >= 10) break;
     await tryAdd(item.url, item.label || 'Google', item.bg || '#ffffff');
   }
 
-  // ── PRIORITY 2: Wikimedia Commons (free, diverse, CORS-ok) ──
-  const wikimediaResults = await searchWikimedia(core);
-  for (const item of wikimediaResults) {
-    if (alts.length >= 7) break;
-    await tryAdd(item.url, item.label, '#ffffff');
-  }
-
-  // ── PRIORITY 3: Wikipedia article image ──
-  const wikiResults = await searchWikipediaBrand(core);
-  for (const item of wikiResults) {
-    await tryAdd(item.url, item.label, '#f4f4f5');
-  }
-
-  // ── PRIORITY 4: Official site brand asset paths ──
-  for (const path of officialPaths(domain)) {
-    if (alts.length >= 8) break;
-    await tryAdd(path, 'Official brand asset', '#ffffff');
-  }
-
-  // ── PRIORITY 5: Brandfetch (only if Google found few) ──
-  if (alts.length < 6) {
-    for (const v of brandfetchVariants(domain)) {
+  // ═══ Only if Google found < 4 — supplement from Wikimedia ═══
+  if (alts.length < 4) {
+    const wikiResults = await searchWikimedia(core);
+    for (const item of wikiResults) {
       if (alts.length >= 8) break;
-      await tryAdd(v.url, v.label, v.bg);
+      await tryAdd(item.url, item.label, '#ffffff');
     }
   }
 
-  // ── PRIORITY 6: AI web search (fallback if Google didn't find enough) ──
-  if (alts.length < 5) {
-    const aiUrls = await searchLogoAI(core, domain);
-    for (const item of aiUrls) {
-      if (alts.length >= 9) break;
-      await tryAdd(item.url, item.label || 'AI found', item.bg || '#ffffff');
-    }
-  }
-
-  // ── bg-color variants (only 2, to not waste space) ──
-  if (alts.length < 10) {
-    alts.push({ url: null, label: 'On black', bg: '#000000', mode: 'logo', useCurrentImg: true });
-    alts.push({ url: null, label: 'On white', bg: '#ffffff', mode: 'logo', useCurrentImg: true });
-  }
+  // ═══ On black + On white — always useful, just 2 slots ═══
+  alts.push({ url: null, label: 'On black', bg: '#000000', mode: 'logo', useCurrentImg: true });
+  alts.push({ url: null, label: 'On white', bg: '#ffffff', mode: 'logo', useCurrentImg: true });
 
   return alts;
 }
