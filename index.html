@@ -1166,9 +1166,9 @@ async function fetchAltLogos(brandName) {
   }
 
   // ── PRIORITY 1: Google Images API (fast, diverse, real images) ──
-  const googleResults = await searchGoogleImages(core);
+  const googleResults = await searchGoogleImages(core, 12);
   for (const item of googleResults) {
-    if (alts.length >= 6) break;
+    if (alts.length >= 8) break;
     await tryAdd(item.url, item.label || 'Google', item.bg || '#ffffff');
   }
 
@@ -1191,10 +1191,12 @@ async function fetchAltLogos(brandName) {
     await tryAdd(path, 'Official brand asset', '#ffffff');
   }
 
-  // ── PRIORITY 5: Brandfetch (different dimensions = different crops) ──
-  for (const v of brandfetchVariants(domain)) {
-    if (alts.length >= 9) break;
-    await tryAdd(v.url, v.label, v.bg);
+  // ── PRIORITY 5: Brandfetch (only if Google found few) ──
+  if (alts.length < 6) {
+    for (const v of brandfetchVariants(domain)) {
+      if (alts.length >= 8) break;
+      await tryAdd(v.url, v.label, v.bg);
+    }
   }
 
   // ── PRIORITY 6: AI web search (fallback if Google didn't find enough) ──
@@ -1206,18 +1208,10 @@ async function fetchAltLogos(brandName) {
     }
   }
 
-  // ── ALWAYS: bg-color variants of current logo (instant, zero network) ──
-  const bgVars = [
-    { bg: '#ffffff', label: 'On white'      },
-    { bg: '#000000', label: 'On black'      },
-    { bg: '#1a1a2e', label: 'On navy'       },
-    { bg: '#e63946', label: 'On red'        },
-    { bg: '#2d6a4f', label: 'On green'      },
-    { bg: '#f4f4f5', label: 'On light grey' },
-  ];
-  for (const v of bgVars) {
-    if (alts.length >= 12) break;
-    alts.push({ url: null, label: v.label, bg: v.bg, mode: 'logo', useCurrentImg: true });
+  // ── bg-color variants (only 2, to not waste space) ──
+  if (alts.length < 10) {
+    alts.push({ url: null, label: 'On black', bg: '#000000', mode: 'logo', useCurrentImg: true });
+    alts.push({ url: null, label: 'On white', bg: '#ffffff', mode: 'logo', useCurrentImg: true });
   }
 
   return alts;
