@@ -719,7 +719,12 @@ function draw(canvas,item,W,H,fw,fh,fx,fy,ov){
 function updateCanvas(idx){
   const item=S.files[idx];if(!item?.result)return;
   const slot=document.getElementById('s'+idx);if(!slot)return;
-  const cv=slot.querySelector('.gc-canvas');if(cv)draw(cv,item,CW,CH,FW,FH,FX,FY,null);
+  const cv=slot.querySelector('.gc-canvas');
+  if(cv){
+    // Render at intrinsic canvas resolution (3x for HiDPI quality)
+    const SC = cv.width / CW;
+    draw(cv,item,cv.width,cv.height,FW*SC,FH*SC,FX*SC,FY*SC,null);
+  }
   const b=slot.querySelector('.badge');
   if(b){b.className='badge '+(item.result.manual?'b-manual':'b-auto');b.textContent=item.result.manual?'manual':item.result.note}
 }
@@ -756,7 +761,7 @@ function mkSlot(i){
     <div class="gift-card">
       <div class="gc-img-wrap">
         <div class="gc-img-box">
-          <canvas class="gc-canvas" width="182" height="132"></canvas>
+          <canvas class="gc-canvas" width="546" height="396" style="width:182px;height:132px"></canvas>
         </div>
       </div>
       <div class="gc-details"><p class="gc-title">Steam Gift —<br>Card 200</p></div>
@@ -2230,7 +2235,7 @@ function renderAltGridWithImages(item, altImages) {
     wrap.className = 'alt-thumb' + (vi === 0 ? ' sel' : '');
 
     const canvas = document.createElement('canvas');
-    canvas.width  = VW; canvas.height = VH;
+    canvas.width  = VW * 3; canvas.height = VH * 3;
     canvas.style.cssText = 'width:100%;height:100%;display:block';
 
     const label = document.createElement('div');
@@ -2242,7 +2247,7 @@ function renderAltGridWithImages(item, altImages) {
 
     // Create a synthetic item with the alt image
     const synth = { ...item, img: alt.img, w: alt.img.naturalWidth, h: alt.img.naturalHeight };
-    draw(canvas, synth, VW, VH, VW-28, VH-20, 14, 10, alt.result);
+    draw(canvas, synth, VW*3, VH*3, (VW-28)*3, (VH-20)*3, 14*3, 10*3, alt.result);
 
     wrap.addEventListener('click', () => {
       altState.selectedVariant = vi;
