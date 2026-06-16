@@ -88,6 +88,11 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'Readex P
 .hex-swatch{width:24px;height:24px;border-radius:5px;border:1px solid var(--bd2);flex-shrink:0;cursor:pointer}
 .hex-input{flex:1;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:5px 8px;color:var(--tx);font-family:var(--mono);font-size:12px;outline:none;width:0}
 .hex-input:focus{border-color:var(--ac)}
+.brand-colors{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap}
+.brand-color{width:22px;height:22px;border-radius:5px;border:1px solid var(--bd2);cursor:pointer;transition:transform .15s;flex-shrink:0}
+.brand-color:hover{transform:scale(1.12);border-color:var(--ac)}
+.brand-color.on{border:2px solid var(--ac)}
+.ctrl-full{grid-column:1/-1}
 .ctrl{display:flex;flex-direction:column;gap:5px}
 .cl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--mt)}
 .seg{display:flex;gap:2px;background:var(--s2);padding:2px;border-radius:6px}
@@ -343,11 +348,12 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'Readex P
               <button class="seg-btn" data-m="fit">Fit</button>
             </div>
           </div>
-          <div class="ctrl"><span class="cl">Background color</span>
+          <div class="ctrl ctrl-full"><span class="cl">Background color</span>
             <div class="hex-input-row">
               <div class="hex-swatch" id="hexSwatch"></div>
               <input type="text" id="hexInput" class="hex-input" placeholder="#ffffff" maxlength="7">
             </div>
+            <div class="brand-colors" id="brandColors"></div>
           </div>
           <div class="ctrl"><span class="cl">Logo size</span>
             <div class="sl"><input type="range" id="ss" min="20" max="100" value="80" step="1"><span class="sv" id="ssv">80%</span></div>
@@ -807,6 +813,8 @@ function syncMp(r){
   const hs=document.getElementById('hexSwatch');
   if(hi){hi.value=S.mp.bg;}
   if(hs){hs.style.background=S.mp.bg;}
+  // Update brand colors palette
+  if (S.sel >= 0 && S.files[S.sel]) renderBrandColors(S.files[S.sel]);
 }
 function drawMini(){
   const item=S.files[S.sel];if(!item?.result)return;
@@ -823,14 +831,86 @@ function setMpBg(hex) {
   S.mp.bg = hex;
   hexInput.value = hex;
   hexSwatch.style.background = hex;
+  document.querySelectorAll('.brand-color').forEach(el => el.classList.toggle('on', el.dataset.color === hex));
   drawMini();
 }
 
+/* ── Brand color extraction ── */
+const brandColorCache = {};
+
+function detectBrandColors(item) {
+  if (!item?.img) return null;
+  try {
+    const cv = document.createElement('canvas');
+    const W = 60, H = 45;
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+    ctx.drawImage(item.img, 0, 0, W, H);
+    const data = ctx.getImageData(0, 0, W, H).data;
+    const colorMap = {};
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i+3] < 128) continue;
+      const r = Math.round(data[i]/32)*32;
+      const g = Math.round(data[i+1]/32)*32;
+      const b = Math.round(data[i+2]/32)*32;
+      if (r > 240 && g > 240 && b > 240) continue;
+      if (r < 16 && g < 16 && b < 16) continue;
+      const key = r+','+g+','+b;
+      colorMap[key] = (colorMap[key] || 0) + 1;
+    }
+    const sorted = Object.entries(colorMap)
+      .sort((a,b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([k]) => {
+        const [r,g,b] = k.split(',').map(Number);
+        return '#' + [r,g,b].map(x => x.toString(16).padStart(2,'0')).join('');
+      });
+    const palette = ['#ffffff', '#000000', ...sorted];
+    const unique = [...new Set(palette)].slice(0, 6);
+    while (unique.length < 6) unique.push('#f4f4f5');
+    return unique;
+  } catch(e) { return null; }
+}
+
+function renderBrandColors(item) {
+  const container = document.getElementById('brandColors');
+  if (!container) return;
+  container.innerHTML = '';
+  const brandKey = ((item.brandName || item.name || '').replace(/\.png$/,'')).toLowerCase();
+  let colors = brandColorCache[brandKey];
+  if (!colors) {
+    colors = detectBrandColors(item) || ['#ffffff','#000000','#1a1a2e','#e63946','#2d6a4f','#f4f4f5'];
+    brandColorCache[brandKey] = colors;
+  }
+  colors.forEach(c => {
+    const sw = document.createElement('div');
+    sw.className = 'brand-color' + (S.mp.bg === c ? ' on' : '');
+    sw.style.background = c;
+    sw.dataset.color = c;
+    sw.title = c;
+    sw.addEventListener('click', () => setMpBg(c));
+    container.appendChild(sw);
+  });
+}
+
 hexInput.addEventListener('input', e => {
-  const v = e.target.value.trim();
-  if (/^#[0-9a-fA-F]{6}$/.test(v)) setMpBg(v);
-  else { hexSwatch.style.background = 'transparent'; }
+  let v = e.target.value.trim();
+  if (v && !v.startsWith('#')) { v = '#' + v; e.target.value = v; }
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+    S.mp.bg = v;
+    hexSwatch.style.background = v;
+    document.querySelectorAll('.brand-color').forEach(el => el.classList.toggle('on', el.dataset.color === v));
+    drawMini();
+  } else if (/^#[0-9a-fA-F]{3}$/.test(v)) {
+    const full = '#' + v[1]+v[1]+v[2]+v[2]+v[3]+v[3];
+    S.mp.bg = full;
+    hexSwatch.style.background = full;
+    drawMini();
+  }
 });
+hexInput.addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
 hexInput.addEventListener('blur', e => {
   const v = e.target.value.trim();
   if (!/^#[0-9a-fA-F]{6}$/.test(v)) { hexInput.value = S.mp.bg; hexSwatch.style.background = S.mp.bg; }
