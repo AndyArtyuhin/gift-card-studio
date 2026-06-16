@@ -1169,13 +1169,28 @@ async function fetchAltLogos(brandName) {
     return false;
   }
 
-  // ═══ SOURCE 1: Brandfetch — high quality logo CDN (multiple crops) ═══
-  // Different sizes and ratios = visually different logos
-  await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/800/h/200',  'Brandfetch wide',    '#ffffff');
-  await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/400/h/400',  'Brandfetch square',  '#ffffff');
-  await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/512/h/512',  'Brandfetch large',   '#000000');
-  await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/1200/h/300', 'Brandfetch banner',  '#f4f4f5');
-  await tryAdd('https://cdn.brandfetch.io/' + domain + '/w/200/h/200',  'Brandfetch icon',    '#ffffff');
+  // ═══ SOURCE 1: Brandfetch — high quality logo CDN (parallel probing) ═══
+  const bfVariants = [
+    { url: 'https://cdn.brandfetch.io/' + domain + '/w/800/h/200',  label: 'Brandfetch wide',    bg: '#ffffff' },
+    { url: 'https://cdn.brandfetch.io/' + domain + '/w/400/h/400',  label: 'Brandfetch square',  bg: '#ffffff' },
+    { url: 'https://cdn.brandfetch.io/' + domain + '/w/512/h/512',  label: 'Brandfetch large',   bg: '#000000' },
+    { url: 'https://cdn.brandfetch.io/' + domain + '/w/1200/h/300', label: 'Brandfetch banner',  bg: '#f4f4f5' },
+    { url: 'https://cdn.brandfetch.io/' + domain + '/w/200/h/200',  label: 'Brandfetch icon',    bg: '#ffffff' },
+  ];
+
+  // Probe all in parallel — 5x faster
+  const bfResults = await Promise.allSettled(
+    bfVariants.map(v => probeImageUrl(v.url).then(ok => ({ v, ok })))
+  );
+  for (const r of bfResults) {
+    if (r.status === 'fulfilled' && r.value.ok) {
+      const { v } = r.value;
+      if (!seen.has(v.url)) {
+        seen.add(v.url);
+        alts.push({ url: v.url, label: v.label, bg: v.bg, mode: 'logo' });
+      }
+    }
+  }
   console.log('[Alt] After Brandfetch:', alts.length);
 
   // ═══ SOURCE 2: Google Images via /api/search proxy ═══
