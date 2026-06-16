@@ -1162,15 +1162,46 @@ async function fetchAltLogos(brandName) {
     return false;
   }
 
-  // ═══ ALL SLOTS GO TO GOOGLE — maximum diversity ═══
+  // ═══ STEP 1: AI finds the MAIN official logo (searches entire internet) ═══
+  // This guarantees we get the canonical brand logo, not sub-brands
+  try {
+    const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 800,
+        tools: [{type:'web_search_20250305', name:'web_search'}],
+        messages: [{role:'user', content:
+          'Search for "' + core + ' logo" and find 3 DIFFERENT direct image URLs of the MAIN official "' + core + '" brand logo. ' +
+          'NOT sub-brands, NOT subsidiaries — just the primary "' + core + '" logo that appears when you Google "' + core + ' logo". ' +
+          'Find: 1) Full logo (text + symbol) on white/transparent, 2) Dark/inverted version, 3) Icon/symbol only version. ' +
+          'Return ONLY JSON array: [{"url":"https://...image.png","label":"Official logo","bg":"#ffffff"},...] ' +
+          'Direct image URLs only (.png .jpg .svg .webp). No HTML pages.'
+        }]
+      })
+    });
+    const aiData = await aiResp.json();
+    const aiTxt = (aiData.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+    const aiMatch = aiTxt.match(/\[[\s\S]*?\]/);
+    if (aiMatch) {
+      const arr = JSON.parse(aiMatch[0]);
+      for (const item of arr.filter(x=>x.url&&/\.(png|jpg|svg|webp)/i.test(x.url))) {
+        await tryAdd(item.url, item.label || 'Official logo', item.bg || '#ffffff');
+      }
+    }
+    console.log('[AI] Found', alts.length, 'official logos for', core);
+  } catch(e) { console.warn('[AI] logo search failed:', e.message); }
+
+  // ═══ STEP 2: Google CSE for more diverse variants ═══
   const googleResults = await searchGoogleImages(core, 14);
   for (const item of googleResults) {
     if (alts.length >= 10) break;
     await tryAdd(item.url, item.label || 'Google', item.bg || '#ffffff');
   }
 
-  // ═══ Only if Google found < 4 — supplement from Wikimedia ═══
-  if (alts.length < 4) {
+  // ═══ STEP 3: Wikimedia if still < 5 ═══
+  if (alts.length < 5) {
     const wikiResults = await searchWikimedia(core);
     for (const item of wikiResults) {
       if (alts.length >= 8) break;
@@ -1178,7 +1209,7 @@ async function fetchAltLogos(brandName) {
     }
   }
 
-  // ═══ On black + On white — always useful, just 2 slots ═══
+  // ═══ On black + On white ═══
   alts.push({ url: null, label: 'On black', bg: '#000000', mode: 'logo', useCurrentImg: true });
   alts.push({ url: null, label: 'On white', bg: '#ffffff', mode: 'logo', useCurrentImg: true });
 
