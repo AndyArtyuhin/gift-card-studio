@@ -1,5 +1,3 @@
-const { createCanvas, loadImage } = require('@napi-rs/canvas');
-
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
@@ -21,33 +19,18 @@ module.exports = async (req, res) => {
     for (const logo of (data.logos || [])) {
       for (const fmt of (logo.formats || [])) {
         if (!fmt.src) continue;
-        let url = fmt.src;
-        let format = fmt.format || 'png';
-
-        // Convert SVG to PNG data URL on server
-        if (format === 'svg') {
-          try {
-            const svgResp = await fetch(fmt.src);
-            const svgText = await svgResp.text();
-            url = 'data:image/svg+xml;base64,' + Buffer.from(svgText).toString('base64');
-            format = 'png'; // treat as renderable
-          } catch(e) {
-            continue; // skip if can't fetch SVG
-          }
-        }
-
         logos.push({
           type:   logo.type  || 'logo',
           theme:  logo.theme || 'light',
-          url,
-          format,
+          url:    fmt.src,
+          format: fmt.format || 'png',
           width:  fmt.width  || 0,
           height: fmt.height || 0,
         });
       }
     }
 
-    // Sort: wordmark first, largest first
+    // Sort: wordmark (logo) first, then symbol, largest first within type
     const order = { logo: 0, symbol: 1, icon: 2 };
     logos.sort((a, b) => {
       const td = (order[a.type] ?? 3) - (order[b.type] ?? 3);
