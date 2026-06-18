@@ -731,10 +731,26 @@ function draw(canvas,item,W,H,fw,fh,fx,fy,ov){
 
 function updateCanvas(idx){
   const item=S.files[idx];if(!item?.result)return;
+
+  // ── Contrast auto-fix: ensure logo doesn't blend with bg ──
+  if (item.result.mode === 'logo' && item.img && !item.result._contrastChecked) {
+    try {
+      const domColor = getLogoDominantColor(item.img);
+      if (domColor && item.result.bg) {
+        const ratio = contrastRatio(domColor, item.result.bg);
+        if (ratio < 2.0) {
+          // Low contrast — swap bg
+          item.result.bg = pickContrastingBg(domColor, item.result.bg);
+          console.log('[Contrast] Fixed bg for', item.name, '→', item.result.bg, '(logo color:', domColor, 'ratio was:', ratio.toFixed(1)+')');
+        }
+      }
+      item.result._contrastChecked = true;
+    } catch(e) {}
+  }
+
   const slot=document.getElementById('s'+idx);if(!slot)return;
   const cv=slot.querySelector('.gc-canvas');
   if(cv){
-    // Render at intrinsic canvas resolution (3x for HiDPI quality)
     const SC = cv.width / CW;
     draw(cv,item,cv.width,cv.height,FW*SC,FH*SC,FX*SC,FY*SC,null);
   }
@@ -879,6 +895,72 @@ function detectBrandColors(item) {
     while (unique.length < 6) unique.push('#f4f4f5');
     return unique;
   } catch(e) { return null; }
+}
+
+/* ── Contrast check: ensure logo doesn't blend with background ── */
+function hexToRgb(hex) {
+  const h = hex.replace('#','');
+  return [parseInt(h.substring(0,2),16), parseInt(h.substring(2,4),16), parseInt(h.substring(4,6),16)];
+}
+
+function luminance(r, g, b) {
+  const [rs, gs, bs] = [r, g, b].map(c => {
+    c = c / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+}
+
+function contrastRatio(hex1, hex2) {
+  const [r1,g1,b1] = hexToRgb(hex1);
+  const [r2,g2,b2] = hexToRgb(hex2);
+  const l1 = luminance(r1, g1, b1);
+  const l2 = luminance(r2, g2, b2);
+  const lighter = Math.max(l1, l2);
+  const darker  = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/* Get dominant color of logo (for contrast checking) */
+function getLogoDominantColor(img) {
+  try {
+    const cv = document.createElement('canvas');
+    cv.width = 40; cv.height = 30;
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(img, 0, 0, 40, 30);
+    const data = ctx.getImageData(0, 0, 40, 30).data;
+    const colorMap = {};
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i+3] < 128) continue; // skip transparent
+      const r = Math.round(data[i]/32)*32;
+      const g = Math.round(data[i+1]/32)*32;
+      const b = Math.round(data[i+2]/32)*32;
+      // Skip near-white and near-black
+      if (r > 224 && g > 224 && b > 224) continue;
+      if (r < 32 && g < 32 && b < 32) continue;
+      const key = r+','+g+','+b;
+      colorMap[key] = (colorMap[key] || 0) + 1;
+    }
+    const top = Object.entries(colorMap).sort((a,b) => b[1] - a[1])[0];
+    if (top) {
+      const [r,g,b] = top[0].split(',').map(Number);
+      return '#' + [r,g,b].map(x => x.toString(16).padStart(2,'0')).join('');
+    }
+  } catch(e) {}
+  return null;
+}
+
+/* Pick best bg color that contrasts with logo
+   Rule: green logo → NOT green bg. Use white or black instead.
+   If brand color has low contrast with logo → swap to white/black */
+function pickContrastingBg(logoDominantColor, candidateBg) {
+  if (!logoDominantColor) return candidateBg;
+  const ratio = contrastRatio(logoDominantColor, candidateBg);
+  if (ratio >= 2.5) return candidateBg; // enough contrast
+  // Low contrast — pick white or black based on logo brightness
+  const [r,g,b] = hexToRgb(logoDominantColor);
+  const lum = luminance(r, g, b);
+  return lum > 0.4 ? '#000000' : '#ffffff'; // dark logo → white bg, light logo → black bg
 }
 
 function renderBrandColors(item) {
@@ -1295,6 +1377,9 @@ async function fetchAltLogos(brandName) {
 
     // Save brand colors
     if (data.colors) brandColors = data.colors;
+
+    // Determine logo dominant color for contrast checking
+    altState._logoDominantColor = null; // will be set when images load
   } catch(e) {
     console.warn('[Brandfetch API] failed:', e.message);
 
