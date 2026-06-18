@@ -2146,10 +2146,11 @@ async function findBrandLogo(name, apiKey) {
     }
   } catch(e) { console.warn('Brandfetch API error:', e.message); }
 
-  // Step 4: Fallback sources
+  // Step 4: Fallback — CDN sources (PNG guaranteed)
   const LOGODEV_TOKEN = 'pk_f_Xq6W7bTMmM_bckjU7c_Q';
   const sources = [
     { url:`https://cdn.brandfetch.io/${entry.domain}/w/800/h/200`, src:'Brandfetch CDN' },
+    { url:`https://cdn.brandfetch.io/${entry.domain}/w/400/h/400`, src:'Brandfetch CDN' },
     { url:`https://img.logo.dev/${entry.domain}?token=${LOGODEV_TOKEN}&size=512&format=png&retina=true`, src:'Logo.dev' },
     { url:`https://logo.clearbit.com/${entry.domain}?size=512`, src:'Clearbit' },
   ];
