@@ -2055,20 +2055,46 @@ async function findBrandLogo(name, apiKey) {
     }
   }
 
-  // Step 3: Brandfetch API — get all logo variants, prefer wordmark
+  // Step 3: Brandfetch API — get all logo variants + brand colors
   try {
     const bfResp = await fetch('/api/brand?domain=' + encodeURIComponent(entry.domain));
     const bfData = await bfResp.json();
     if (bfData.logos && bfData.logos.length > 0) {
-      // Priority: type="logo" (wordmark) → type="symbol" → type="icon"
-      const wordmark = bfData.logos.find(l => l.type === 'logo' && l.format !== 'svg');
-      const symbol   = bfData.logos.find(l => l.type === 'symbol' && l.format !== 'svg');
-      const best     = wordmark || symbol || bfData.logos[0];
-      if (best && best.url) {
-        entry.logoUrl = best.url;
-        entry.source  = 'Brandfetch';
-        entry.found   = true;
-        entry.brandData = bfData; // cache for Try Another
+      // Get primary brand color
+      const brandColor = (bfData.colors && bfData.colors[0]) || '#ffffff';
+      const brandColorIsDark = luminance(...hexToRgb(brandColor)) < 0.4;
+
+      // Find wordmark (type="logo") variants for light and dark themes
+      const pngLogos = bfData.logos.filter(l => l.format !== 'svg');
+      const wordmarkLight = pngLogos.find(l => l.type === 'logo' && l.theme === 'light');
+      const wordmarkDark  = pngLogos.find(l => l.type === 'logo' && l.theme === 'dark');
+      const symbolLight   = pngLogos.find(l => l.type === 'symbol' && l.theme === 'light');
+      const symbolDark    = pngLogos.find(l => l.type === 'symbol' && l.theme === 'dark');
+      const anyWordmark   = pngLogos.find(l => l.type === 'logo');
+      const anySymbol     = pngLogos.find(l => l.type === 'symbol');
+
+      // Strategy: use brand color as bg, pick contrasting logo
+      let bestLogo, bestBg;
+
+      if (brandColorIsDark) {
+        // Dark brand color → use light/white logo on brand color
+        bestLogo = wordmarkDark || symbolDark || wordmarkLight || anyWordmark || anySymbol || pngLogos[0];
+        bestBg = brandColor;
+      } else {
+        // Light brand color → use dark logo on white or brand color
+        bestLogo = wordmarkLight || symbolLight || wordmarkDark || anyWordmark || anySymbol || pngLogos[0];
+        // If brand color is too light for bg, use white
+        bestBg = luminance(...hexToRgb(brandColor)) > 0.85 ? '#ffffff' : brandColor;
+      }
+
+      if (bestLogo && bestLogo.url) {
+        entry.logoUrl   = bestLogo.url;
+        entry.source    = 'Brandfetch';
+        entry.found     = true;
+        entry.brandData = bfData;
+        entry.brandBg   = bestBg;
+        entry.brandColors = bfData.colors || [];
+        console.log('[Brandfetch]', entry.domain, 'logo:', bestLogo.type, bestLogo.theme, 'bg:', bestBg, 'brandColor:', brandColor);
         return entry;
       }
     }
@@ -2226,7 +2252,7 @@ async function loadBrandLogoAsCard(brand) {
           note: 'game · cover', manual: false, logoBbox: null, aiMode: 'photo',
           noBgRemove: false
         } : isTrustedLogo ? {
-          mode: 'logo', bg: '#ffffff', scale: 85, offY: 0, thresh: 80,
+          mode: 'logo', bg: brand.brandBg || '#ffffff', scale: 85, offY: 0, thresh: 80,
           note: 'logo · ' + brand.source, manual: false, logoBbox: null, aiMode: 'logo',
           noBgRemove: true, _contrastChecked: false
         } : null,
