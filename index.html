@@ -785,6 +785,8 @@ function renderGrid(){
     if(!document.getElementById('s'+i))cg.appendChild(mkSlot(i));
     const slot=document.getElementById('s'+i);
     slot.querySelector('.slot-name').textContent=item.name;
+    const gcTitle=slot.querySelector('.gc-title');
+    if(gcTitle){const dn=item.brandName||item.name.replace(/\.[^.]+$/,'');gcTitle.textContent=dn;}
     slot.querySelector('.gift-card').classList.toggle('sel',i===S.sel);
     const b=slot.querySelector('.badge');
     if(item.proc){b.className='badge b-proc';b.textContent='analysing…'}
@@ -800,7 +802,7 @@ function mkSlot(i){
           <canvas class="gc-canvas" width="546" height="396" style="width:182px;height:132px"></canvas>
         </div>
       </div>
-      <div class="gc-details"><p class="gc-title">Steam Gift —<br>Card 200</p></div>
+      <div class="gc-details"><p class="gc-title"></p></div>
       <div class="gc-buttons">
         <button class="gc-buy">Buy Now</button>
         <button class="gc-fav">
@@ -2173,6 +2175,16 @@ async function findBrandLogo(name, apiKey) {
       console.log('[Brandfetch] brandColor:', brandColor, 'bgLum:', bgLum.toFixed(2),
         '→ bg:', bestBg, 'logo:', bestLogo?.type, bestLogo?.theme, bestLogo?.format);
 
+      // If bestLogo is SVG → use CDN PNG URL instead (SVG fails on canvas due to CORS)
+      if (bestLogo && bestLogo.format === 'svg') {
+        const thm = bestLogo.theme === 'dark' ? 'dark' : 'light';
+        bestLogo = {
+          type: bestLogo.type, theme: thm, format: 'png',
+          url: 'https://cdn.brandfetch.io/' + entry.domain + '/theme/' + thm + '/w/800/h/200',
+        };
+        console.log('[Brandfetch] SVG->CDN PNG fallback:', bestLogo.url);
+      }
+
       if (bestLogo && bestLogo.url) {
         entry.logoUrl   = bestLogo.url;
         entry.source    = 'Brandfetch';
@@ -2308,7 +2320,11 @@ async function loadBrandLogoAsCard(brand) {
     const timer = setTimeout(() => resolve(false), 10000);
     img.onload = () => {
       clearTimeout(timer);
-      if (img.naturalWidth < 8) { resolve(false); return; }
+      if (img.naturalWidth < 8) {
+        // Image loaded but empty — trigger onerror fallback
+        img.dispatchEvent(new Event('error'));
+        return;
+      }
 
       // For wiki/tainted images: draw via second pass without crossOrigin
       // by re-creating the image without the crossOrigin attribute
@@ -2352,7 +2368,47 @@ async function loadBrandLogoAsCard(brand) {
       setTimeout(() => analyse(fileIdx), 20);
       resolve(true);
     };
-    img.onerror = () => { clearTimeout(timer); resolve(false); };
+    img.onerror = () => {
+      clearTimeout(timer);
+      // Try Logo.dev as fallback before giving up
+      if (!brand._logodevTried && brand.domain) {
+        brand._logodevTried = true;
+        const logodevUrl = 'https://img.logo.dev/' + brand.domain + '?token=pk_f_Xq6W7bTMmM_bckjU7c_Q&size=512&format=png&retina=true';
+        console.log('[loadBrandLogoAsCard] fallback to Logo.dev:', logodevUrl);
+        brand.logoUrl = logodevUrl;
+        brand.brandBg = brand.brandBg || '#ffffff';
+        const img2 = new Image();
+        img2.crossOrigin = 'anonymous';
+        const t2 = setTimeout(() => resolve(false), 8000);
+        img2.onload = () => {
+          clearTimeout(t2);
+          if (img2.naturalWidth < 8) { resolve(false); return; }
+          const item2 = {
+            img: img2,
+            name: (brand.core || brand.name) + '.png',
+            url: logodevUrl,
+            w: img2.naturalWidth || 400,
+            h: img2.naturalHeight || 400,
+            brandName: brand.core || brand.name,
+            isGame: false,
+            result: { mode:'logo', bg: brand.brandBg || '#ffffff', scale:80, offY:0, thresh:80,
+              note:'logo · Logo.dev', manual:false, logoBbox:null, aiMode:'logo',
+              noBgRemove:true, _contrastChecked:false },
+            proc: false,
+            corsBlocked: false,
+          };
+          S.files.push(item2);
+          const fi = S.files.length - 1;
+          renderGrid();
+          setTimeout(() => analyse(fi), 20);
+          resolve(true);
+        };
+        img2.onerror = () => { clearTimeout(t2); resolve(false); };
+        img2.src = logodevUrl;
+      } else {
+        resolve(false);
+      }
+    };
     img.src = brand.logoUrl;
   });
 }
