@@ -1023,10 +1023,14 @@ hexSwatch.addEventListener('click', () => {
   });
 });
 document.getElementById('mpa').addEventListener('click',()=>{
-  if(S.sel<0)return;
+  if(S.sel<0){console.warn('[Apply] No card selected');return;}
   const item=S.files[S.sel];
-  item.result={...item.result,...S.mp,thresh:80,manual:true,note:S.mp.mode};
-  updateCanvas(S.sel);renderGrid();
+  if(!item){console.warn('[Apply] No item at',S.sel);return;}
+  // Apply manual settings — reset contrast check so manual bg is respected
+  item.result={...item.result,...S.mp,thresh:80,manual:true,note:S.mp.mode,_contrastChecked:true,noBgRemove:true};
+  console.log('[Apply]',item.name,'mode:',S.mp.mode,'bg:',S.mp.bg);
+  try { updateCanvas(S.sel); } catch(e) { console.warn('[Apply] draw error:',e.message); }
+  renderGrid();
 });
 
 /* ── HELPERS ── */
