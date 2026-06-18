@@ -2116,17 +2116,31 @@ async function findBrandLogo(name, apiKey) {
       // If brand color is mid-range or logo's own color matches brand color → use white bg
       let bestBg, bestLogo;
 
+      // Check what themes are actually available as PNG
+      const hasDarkPng  = allLogos.some(l => l.theme === 'dark'  && l.format === 'png');
+      const hasLightPng = allLogos.some(l => l.theme === 'light' && l.format === 'png');
+      const hasDarkSvg  = allLogos.some(l => l.theme === 'dark'  && l.format === 'svg');
+
       if (bgLum < 0.35) {
-        // Dark brand color (black, navy, dark green) → use as bg with light logo
-        bestBg   = brandColor;
-        bestLogo = pickWordmark(true);
+        // Dark brand color → want light/white logo on dark bg
+        if (hasDarkPng) {
+          // Has white/light PNG → use brand color as bg
+          bestBg   = brandColor;
+          bestLogo = pickWordmark(true);
+        } else if (hasDarkSvg) {
+          // Only SVG dark variant → use brand color, CDN will handle
+          bestBg   = brandColor;
+          bestLogo = pickWordmark(true);
+        } else {
+          // No dark variant at all → white bg with light-theme logo
+          bestBg   = '#ffffff';
+          bestLogo = pickWordmark(false);
+        }
       } else if (bgLum > 0.7) {
-        // Very light brand color → white bg with dark logo
         bestBg   = '#ffffff';
         bestLogo = pickWordmark(false);
       } else {
-        // Mid-range color (orange, red, green) → check if logo contrasts
-        // For safety, use white bg with dark logo (most readable)
+        // Mid-range (orange etc) → always white bg
         bestBg   = '#ffffff';
         bestLogo = pickWordmark(false);
       }
