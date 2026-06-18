@@ -738,7 +738,7 @@ function updateCanvas(idx){
       const domColor = getLogoDominantColor(item.img);
       if (domColor && item.result.bg) {
         const ratio = contrastRatio(domColor, item.result.bg);
-        if (ratio < 2.0) {
+        if (ratio < 3.0) {
           // Low contrast — swap bg
           item.result.bg = pickContrastingBg(domColor, item.result.bg);
           console.log('[Contrast] Fixed bg for', item.name, '→', item.result.bg, '(logo color:', domColor, 'ratio was:', ratio.toFixed(1)+')');
@@ -921,31 +921,50 @@ function contrastRatio(hex1, hex2) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-/* Get dominant color of logo (for contrast checking) */
+/* Get dominant non-bg color of logo + check if logo is mostly white or black */
 function getLogoDominantColor(img) {
   try {
     const cv = document.createElement('canvas');
     cv.width = 40; cv.height = 30;
     const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#808080'; // neutral gray fill to detect transparent logos
+    ctx.fillRect(0, 0, 40, 30);
     ctx.drawImage(img, 0, 0, 40, 30);
     const data = ctx.getImageData(0, 0, 40, 30).data;
+
+    let whitePx = 0, blackPx = 0, totalPx = 0;
     const colorMap = {};
+
     for (let i = 0; i < data.length; i += 4) {
-      if (data[i+3] < 128) continue; // skip transparent
-      const r = Math.round(data[i]/32)*32;
-      const g = Math.round(data[i+1]/32)*32;
-      const b = Math.round(data[i+2]/32)*32;
-      // Skip near-white and near-black
-      if (r > 224 && g > 224 && b > 224) continue;
-      if (r < 32 && g < 32 && b < 32) continue;
-      const key = r+','+g+','+b;
+      const r = data[i], g = data[i+1], b = data[i+2];
+      totalPx++;
+
+      // Count white and black pixels
+      if (r > 230 && g > 230 && b > 230) { whitePx++; continue; }
+      if (r < 25 && g < 25 && b < 25) { blackPx++; continue; }
+
+      // Quantize colored pixels
+      const qr = Math.round(r/32)*32;
+      const qg = Math.round(g/32)*32;
+      const qb = Math.round(b/32)*32;
+      const key = qr+','+qg+','+qb;
       colorMap[key] = (colorMap[key] || 0) + 1;
     }
+
+    // If logo is mostly white → return white as dominant
+    if (whitePx > totalPx * 0.4) return '#ffffff';
+    // If logo is mostly black → return black as dominant
+    if (blackPx > totalPx * 0.4) return '#000000';
+
+    // Otherwise return most common color
     const top = Object.entries(colorMap).sort((a,b) => b[1] - a[1])[0];
     if (top) {
       const [r,g,b] = top[0].split(',').map(Number);
       return '#' + [r,g,b].map(x => x.toString(16).padStart(2,'0')).join('');
     }
+
+    // Fallback: more white or more black?
+    return whitePx > blackPx ? '#ffffff' : '#000000';
   } catch(e) {}
   return null;
 }
@@ -2190,7 +2209,7 @@ async function loadBrandLogoAsCard(brand) {
       const brandIsGame = isGameBrand(brand.core || brand.name);
 
       // Detect if logo is from a trusted CDN (Brandfetch API / Logo.dev)
-      const isTrustedLogo = brand.source === 'Brandfetch' || brand.source === 'Logo.dev';
+      const isTrustedLogo = brand.source && (brand.source.startsWith('Brandfetch') || brand.source.startsWith('Logo') || brand.source === 'Clearbit');
 
       const item = {
         img: useImg,
