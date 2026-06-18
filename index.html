@@ -1274,20 +1274,20 @@ async function fetchAltLogos(brandName) {
       const icons     = data.logos.filter(l => l.type === 'icon' && l.format !== 'svg');
 
       // Add wordmarks first (full logo with text — priority)
-      for (const l of wordmarks.slice(0, 3)) {
-        const bg = l.bg === 'transparent' ? '#ffffff' : (l.bg || '#ffffff');
-        addAlt(l.url, 'Wordmark' + (l.bg === 'dark' ? ' dark' : ''), bg);
+      for (const l of wordmarks.slice(0, 4)) {
+        const bg = l.theme === 'dark' ? '#000000' : '#ffffff';
+        addAlt(l.url, 'Wordmark' + (l.theme === 'dark' ? ' dark' : '') + ' (' + l.format + ')', bg);
       }
 
       // Then symbols (logo mark without text)
-      for (const l of symbols.slice(0, 2)) {
-        const bg = l.bg === 'transparent' ? '#ffffff' : (l.bg || '#ffffff');
-        addAlt(l.url, 'Symbol' + (l.bg === 'dark' ? ' dark' : ''), bg);
+      for (const l of symbols.slice(0, 3)) {
+        const bg = l.theme === 'dark' ? '#000000' : '#ffffff';
+        addAlt(l.url, 'Symbol' + (l.theme === 'dark' ? ' dark' : ''), bg);
       }
 
       // Then icons
       for (const l of icons.slice(0, 1)) {
-        addAlt(l.url, 'Icon', l.bg || '#ffffff');
+        addAlt(l.url, 'Icon', l.theme === 'dark' ? '#000000' : '#ffffff');
       }
 
       console.log('[Brandfetch API] Found:', wordmarks.length, 'wordmarks,', symbols.length, 'symbols,', icons.length, 'icons');
