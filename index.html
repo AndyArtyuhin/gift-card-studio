@@ -1376,9 +1376,9 @@ async function fetchAltLogos(brandName) {
 
     if (data.logos && data.logos.length > 0) {
       // Group by type
-      const wordmarks = data.logos.filter(l => l.type === 'logo' && l.format !== 'svg');
-      const symbols   = data.logos.filter(l => l.type === 'symbol' && l.format !== 'svg');
-      const icons     = data.logos.filter(l => l.type === 'icon' && l.format !== 'svg');
+      const wordmarks = data.logos.filter(l => l.type === 'logo');
+      const symbols   = data.logos.filter(l => l.type === 'symbol');
+      const icons     = data.logos.filter(l => l.type === 'icon');
 
       // Add wordmarks first (full logo with text — priority)
       for (const l of wordmarks.slice(0, 4)) {
@@ -2072,7 +2072,7 @@ async function findBrandLogo(name, apiKey) {
       }
 
       // Find wordmark (type="logo") variants for light and dark themes
-      const pngLogos = bfData.logos.filter(l => l.format !== 'svg');
+      const pngLogos = bfData.logos; // SVG loads fine as img src
       const wordmarkLight = pngLogos.find(l => l.type === 'logo' && l.theme === 'light');
       const wordmarkDark  = pngLogos.find(l => l.type === 'logo' && l.theme === 'dark');
       const symbolLight   = pngLogos.find(l => l.type === 'symbol' && l.theme === 'light');
