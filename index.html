@@ -734,9 +734,9 @@ function draw(canvas,item,W,H,fw,fh,fx,fy,ov){
 function updateCanvas(idx){
   const item=S.files[idx];if(!item?.result)return;
 
-  // ── Contrast auto-fix: ensure logo doesn't blend with bg ──
-  // Applies to ALL logos including trusted — brand color bg is kept only if logo is visible
-  if (item.result.mode === 'logo' && item.img && !item.result._contrastChecked) {
+  // ── Contrast auto-fix — ONLY for user-uploaded files, not CDN logos ──
+  // CDN logos (Brandfetch/Logo.dev) use API theme data — no pixel analysis needed
+  if (item.result.mode === 'logo' && item.img && !item.result._contrastChecked && item.proc) {
     try {
       const domColor = getLogoDominantColor(item.img);
       if (domColor && item.result.bg) {
@@ -2080,34 +2080,58 @@ async function findBrandLogo(name, apiKey) {
       const anyWordmark   = pngLogos.find(l => l.type === 'logo');
       const anySymbol     = pngLogos.find(l => l.type === 'symbol');
 
-      // Strategy: WORDMARK ALWAYS FIRST, brand color as bg
+      // STRATEGY:
+      // 1. Try brand color as bg with contrasting logo theme
+      // 2. If brand color IS the logo color (e.g. Amazon orange) → use white/black bg
+      // 3. Wordmark ALWAYS priority over symbol
+
+      const allLogos = bfData.logos;
       const bgLum = luminance(...hexToRgb(brandColor));
-      let bestBg = bgLum > 0.85 ? '#ffffff' : brandColor;
 
-      // RULE: wordmark (type=logo) is ALWAYS priority #1
-      // Pick the theme that contrasts with bg
-      const allLogos = pngLogos; // includes SVG now
-      let bestLogo;
-
-      if (bgLum < 0.5) {
-        // Dark/colored bg → need light/white logo
-        bestLogo = allLogos.find(l => l.type === 'logo' && l.theme === 'dark')   // wordmark for dark bg
-                || allLogos.find(l => l.type === 'logo' && l.theme === 'light')  // any wordmark
-                || allLogos.find(l => l.type === 'logo')                         // any wordmark at all
-                || allLogos.find(l => l.type === 'symbol' && l.theme === 'dark') // symbol fallback
-                || allLogos.find(l => l.type === 'symbol')
-                || allLogos[0];
-      } else {
-        // Light/white bg → need dark logo
-        bestLogo = allLogos.find(l => l.type === 'logo' && l.theme === 'light')  // wordmark for light bg
-                || allLogos.find(l => l.type === 'logo' && l.theme === 'dark')   // any wordmark
-                || allLogos.find(l => l.type === 'logo')                         // any wordmark at all
-                || allLogos.find(l => l.type === 'symbol' && l.theme === 'light')
-                || allLogos.find(l => l.type === 'symbol')
-                || allLogos[0];
+      // Pick logo theme based on bg luminance
+      // dark bg (lum<0.4) → need light/white logo (theme=dark)
+      // light bg (lum>0.6) → need dark logo (theme=light)
+      function pickWordmark(preferDark) {
+        if (preferDark) {
+          return allLogos.find(l => l.type === 'logo'   && l.theme === 'dark')
+              || allLogos.find(l => l.type === 'logo'   && l.theme === 'light')
+              || allLogos.find(l => l.type === 'logo')
+              || allLogos.find(l => l.type === 'symbol' && l.theme === 'dark')
+              || allLogos.find(l => l.type === 'symbol')
+              || allLogos[0];
+        } else {
+          return allLogos.find(l => l.type === 'logo'   && l.theme === 'light')
+              || allLogos.find(l => l.type === 'logo'   && l.theme === 'dark')
+              || allLogos.find(l => l.type === 'logo')
+              || allLogos.find(l => l.type === 'symbol' && l.theme === 'light')
+              || allLogos.find(l => l.type === 'symbol')
+              || allLogos[0];
+        }
       }
 
-      console.log('[Brandfetch] Selected:', bestLogo?.type, bestLogo?.theme, bestLogo?.format, 'for bg:', bestBg);
+      // Check contrast: does logo theme contrast enough with brand color?
+      // theme=dark logos are white/light on dark bg
+      // theme=light logos are dark/colored on light bg
+      // If brand color is mid-range or logo's own color matches brand color → use white bg
+      let bestBg, bestLogo;
+
+      if (bgLum < 0.35) {
+        // Dark brand color (black, navy, dark green) → use as bg with light logo
+        bestBg   = brandColor;
+        bestLogo = pickWordmark(true);
+      } else if (bgLum > 0.7) {
+        // Very light brand color → white bg with dark logo
+        bestBg   = '#ffffff';
+        bestLogo = pickWordmark(false);
+      } else {
+        // Mid-range color (orange, red, green) → check if logo contrasts
+        // For safety, use white bg with dark logo (most readable)
+        bestBg   = '#ffffff';
+        bestLogo = pickWordmark(false);
+      }
+
+      console.log('[Brandfetch] brandColor:', brandColor, 'bgLum:', bgLum.toFixed(2),
+        '→ bg:', bestBg, 'logo:', bestLogo?.type, bestLogo?.theme, bestLogo?.format);
 
       if (bestLogo && bestLogo.url) {
         entry.logoUrl   = bestLogo.url;
