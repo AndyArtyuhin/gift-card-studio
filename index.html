@@ -668,13 +668,15 @@ function draw(canvas,item,W,H,fw,fh,fx,fy,ov){
       }
 
     } else if (r.noBgRemove) {
-      // ── Trusted source (Logo.dev/Brandfetch) — no bg removal ──
-      // Use naturalWidth/Height, fallback to canvas size for SVG (reports 0)
+      // ── Trusted source (Logo.dev/Brandfetch) — no bg removal, centered ──
       const rw = img.naturalWidth  || W;
       const rh = img.naturalHeight || H;
-      const sf = Math.min(fw*sc/rw, fh*sc/rh) * (r.scale/100||0.85);
-      const dw = rw*sf, dh = rh*sf;
-      const dx = fx + (fw*sc-dw)/2, dy = fy + (fh*sc-dh)/2 + (r.offY||0);
+      const logoScale = (r.scale || 85) / 100;
+      const sf = Math.min(fw / rw, fh / rh) * logoScale;
+      const dw = rw * sf;
+      const dh = rh * sf;
+      const dx = fx + (fw - dw) / 2;
+      const dy = fy + (fh - dh) / 2 + (r.offY || 0);
       ctx.drawImage(img, dx, dy, dw, dh);
 
     } else {
@@ -1796,12 +1798,16 @@ function drawExport(canvas,item,W,H,fw,fh,fx,fy,ov,SCALE){
           fx+(fw-dw)/2,fy+(fh-dh)/2+(r.offY||0)*SCALE,dw,dh);
       }
     } else if (r.noBgRemove) {
-      // Trusted CDN logo — no bg removal, just center-fit
+      // Trusted CDN logo — no bg removal, centered
       const rw = img.naturalWidth  || W;
       const rh = img.naturalHeight || H;
-      const sf = Math.min(fw*sc/rw, fh*sc/rh) * (r.scale/100||0.85);
-      const dw = rw*sf, dh = rh*sf;
-      ctx.drawImage(img, fx+(fw*sc-dw)/2, fy+(fh*sc-dh)/2+(r.offY||0)*SCALE, dw, dh);
+      const logoScale = (r.scale || 85) / 100;
+      const sf = Math.min(fw / rw, fh / rh) * logoScale;
+      const dw = rw * sf;
+      const dh = rh * sf;
+      const dx = fx + (fw - dw) / 2;
+      const dy = fy + (fh - dh) / 2 + (r.offY || 0) * SCALE;
+      ctx.drawImage(img, dx, dy, dw, dh);
     } else {
       const tmpOff=new OffscreenCanvas(iw,ih);
       const tmpCtx=tmpOff.getContext('2d');tmpCtx.drawImage(img,0,0);
