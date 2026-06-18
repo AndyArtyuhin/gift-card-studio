@@ -1255,51 +1255,88 @@ async function fetchAltLogos(brandName) {
   const alts   = [];
   const seen   = new Set();
 
-  function tryAddSync(url, label, bg) {
+  function addAlt(url, label, bg) {
     if (!url || seen.has(url)) return;
     seen.add(url);
     alts.push({ url, label, bg: bg || '#ffffff', mode: 'logo', noBgRemove: true });
   }
 
-  // ═══ SOURCE 1: Brandfetch — PRIMARY — wordmark/full logo priority ═══
-  // Wide formats return full logo with text, not just icon
-  const bfVariants = [
-    { url: 'https://cdn.brandfetch.io/' + domain + '/w/1200/h/300', label: 'Full logo',           bg: '#ffffff' },
-    { url: 'https://cdn.brandfetch.io/' + domain + '/w/800/h/200',  label: 'Logo wide',           bg: '#ffffff' },
-    { url: 'https://cdn.brandfetch.io/' + domain + '/w/600/h/600',  label: 'Logo square',         bg: '#ffffff' },
-    { url: 'https://cdn.brandfetch.io/' + domain + '/w/800/h/200/theme/dark',  label: 'Logo dark', bg: '#000000' },
-    { url: 'https://cdn.brandfetch.io/' + domain + '/w/800/h/200/theme/light', label: 'Logo light',bg: '#ffffff' },
-  ];
+  // ═══ SOURCE 1: Brandfetch API — all logo variants ═══
+  let brandColors = [];
+  try {
+    const resp = await fetch('/api/brand?domain=' + encodeURIComponent(domain));
+    const data = await resp.json();
 
-  const bfResults = await Promise.allSettled(
-    bfVariants.map(v => probeImageUrl(v.url).then(ok => ({ v, ok })))
-  );
-  for (const r of bfResults) {
-    if (r.status === 'fulfilled' && r.value.ok) {
-      tryAddSync(r.value.v.url, r.value.v.label, r.value.v.bg);
+    if (data.logos && data.logos.length > 0) {
+      // Group by type
+      const wordmarks = data.logos.filter(l => l.type === 'logo' && l.format !== 'svg');
+      const symbols   = data.logos.filter(l => l.type === 'symbol' && l.format !== 'svg');
+      const icons     = data.logos.filter(l => l.type === 'icon' && l.format !== 'svg');
+
+      // Add wordmarks first (full logo with text — priority)
+      for (const l of wordmarks.slice(0, 3)) {
+        const bg = l.bg === 'transparent' ? '#ffffff' : (l.bg || '#ffffff');
+        addAlt(l.url, 'Wordmark' + (l.bg === 'dark' ? ' dark' : ''), bg);
+      }
+
+      // Then symbols (logo mark without text)
+      for (const l of symbols.slice(0, 2)) {
+        const bg = l.bg === 'transparent' ? '#ffffff' : (l.bg || '#ffffff');
+        addAlt(l.url, 'Symbol' + (l.bg === 'dark' ? ' dark' : ''), bg);
+      }
+
+      // Then icons
+      for (const l of icons.slice(0, 1)) {
+        addAlt(l.url, 'Icon', l.bg || '#ffffff');
+      }
+
+      console.log('[Brandfetch API] Found:', wordmarks.length, 'wordmarks,', symbols.length, 'symbols,', icons.length, 'icons');
+    }
+
+    // Save brand colors
+    if (data.colors) brandColors = data.colors;
+  } catch(e) {
+    console.warn('[Brandfetch API] failed:', e.message);
+
+    // Fallback: use CDN with wide format
+    const bfVariants = [
+      { url: 'https://cdn.brandfetch.io/' + domain + '/w/1200/h/300', label: 'Full logo',   bg: '#ffffff' },
+      { url: 'https://cdn.brandfetch.io/' + domain + '/w/800/h/200',  label: 'Logo wide',   bg: '#ffffff' },
+      { url: 'https://cdn.brandfetch.io/' + domain + '/w/600/h/600',  label: 'Logo square', bg: '#ffffff' },
+    ];
+    const bfResults = await Promise.allSettled(
+      bfVariants.map(v => probeImageUrl(v.url).then(ok => ({ v, ok })))
+    );
+    for (const r of bfResults) {
+      if (r.status === 'fulfilled' && r.value.ok) {
+        addAlt(r.value.v.url, r.value.v.label, r.value.v.bg);
+      }
     }
   }
   console.log('[Alt] After Brandfetch:', alts.length);
 
-  // ═══ SOURCE 2: Logo.dev — supplement with different rendering ═══
+  // ═══ SOURCE 2: Logo.dev — supplement ═══
   const LOGODEV_TOKEN = 'pk_f_Xq6W7bTMmM_bckjU7c_Q';
   const ldVariants = [
     { url: 'https://img.logo.dev/' + domain + '?token=' + LOGODEV_TOKEN + '&size=512&format=png&retina=true',             label: 'Logo.dev HD',    bg: '#ffffff' },
     { url: 'https://img.logo.dev/' + domain + '?token=' + LOGODEV_TOKEN + '&size=512&format=png&theme=dark&retina=true',  label: 'Logo.dev dark',  bg: '#000000' },
-    { url: 'https://img.logo.dev/' + domain + '?token=' + LOGODEV_TOKEN + '&size=512&format=png&theme=light&retina=true', label: 'Logo.dev light', bg: '#ffffff' },
   ];
-
   const ldResults = await Promise.allSettled(
     ldVariants.map(v => probeImageUrl(v.url).then(ok => ({ v, ok })))
   );
   for (const r of ldResults) {
     if (r.status === 'fulfilled' && r.value.ok) {
-      tryAddSync(r.value.v.url, r.value.v.label, r.value.v.bg);
+      addAlt(r.value.v.url, r.value.v.label, r.value.v.bg);
     }
   }
   console.log('[Alt] After Logo.dev:', alts.length);
 
-  // ═══ Brand color background variants ═══
+  // ═══ Brand color variants ═══
+  if (brandColors.length > 0) {
+    for (const c of brandColors.slice(0, 3)) {
+      alts.push({ url: null, label: 'Brand: ' + c, bg: c, mode: 'logo', useCurrentImg: true, noBgRemove: true });
+    }
+  }
   alts.push({ url: null, label: 'On white', bg: '#ffffff', mode: 'logo', useCurrentImg: true, noBgRemove: true });
   alts.push({ url: null, label: 'On black', bg: '#000000', mode: 'logo', useCurrentImg: true, noBgRemove: true });
 
@@ -1908,11 +1945,29 @@ async function findBrandLogo(name, apiKey) {
     }
   }
 
-  // Step 3–7: Try all logo sources — Brandfetch FIRST (wordmark priority)
+  // Step 3: Brandfetch API — get all logo variants, prefer wordmark
+  try {
+    const bfResp = await fetch('/api/brand?domain=' + encodeURIComponent(entry.domain));
+    const bfData = await bfResp.json();
+    if (bfData.logos && bfData.logos.length > 0) {
+      // Priority: type="logo" (wordmark) → type="symbol" → type="icon"
+      const wordmark = bfData.logos.find(l => l.type === 'logo' && l.format !== 'svg');
+      const symbol   = bfData.logos.find(l => l.type === 'symbol' && l.format !== 'svg');
+      const best     = wordmark || symbol || bfData.logos[0];
+      if (best && best.url) {
+        entry.logoUrl = best.url;
+        entry.source  = 'Brandfetch';
+        entry.found   = true;
+        entry.brandData = bfData; // cache for Try Another
+        return entry;
+      }
+    }
+  } catch(e) { console.warn('Brandfetch API error:', e.message); }
+
+  // Step 4: Fallback sources
   const LOGODEV_TOKEN = 'pk_f_Xq6W7bTMmM_bckjU7c_Q';
   const sources = [
-    { url:`https://cdn.brandfetch.io/${entry.domain}/w/800/h/200`, src:'Brandfetch' },
-    { url:`https://cdn.brandfetch.io/${entry.domain}/w/400/h/400`, src:'Brandfetch' },
+    { url:`https://cdn.brandfetch.io/${entry.domain}/w/800/h/200`, src:'Brandfetch CDN' },
     { url:`https://img.logo.dev/${entry.domain}?token=${LOGODEV_TOKEN}&size=512&format=png&retina=true`, src:'Logo.dev' },
     { url:`https://logo.clearbit.com/${entry.domain}?size=512`, src:'Clearbit' },
   ];
