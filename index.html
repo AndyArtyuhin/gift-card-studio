@@ -407,6 +407,8 @@ function addFiles(fs){
 ══════════════════════════════════════════ */
 function analyse(idx){
   const item=S.files[idx];if(!item)return;
+  // Skip pixel analysis for trusted logos (Brandfetch/Logo.dev) and games
+  if(!item.proc){console.log('[Analyse] Skipped',item.name,'(trusted source)');updateCanvas(idx);return;}
   const iw=item.w,ih=item.h;
   const sc=Math.min(1,320/Math.max(iw,ih));
   const sw=Math.round(iw*sc),sh=Math.round(ih*sc);
