@@ -735,8 +735,8 @@ function updateCanvas(idx){
   const item=S.files[idx];if(!item?.result)return;
 
   // ── Contrast auto-fix: ensure logo doesn't blend with bg ──
-  // Skip for trusted sources (Brandfetch/Logo.dev) — brand color bg is intentional
-  if (item.result.mode === 'logo' && item.img && !item.result._contrastChecked && !item.result.noBgRemove) {
+  // Applies to ALL logos including trusted — brand color bg is kept only if logo is visible
+  if (item.result.mode === 'logo' && item.img && !item.result._contrastChecked) {
     try {
       const domColor = getLogoDominantColor(item.img);
       if (domColor && item.result.bg) {
