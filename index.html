@@ -2312,105 +2312,84 @@ function renderImpGrid() {
 
 /* impConfirmBtn removed — auto-build handles this */
 
+// Trusted CDN domains that need proxy for canvas CORS
+const PROXY_DOMAINS = ['cdn.brandfetch.io', 'img.logo.dev', 'logo.clearbit.com'];
+function proxyUrl(url) {
+  try {
+    const h = new URL(url).hostname;
+    if (PROXY_DOMAINS.some(d => h === d || h.endsWith('.' + d))) {
+      return '/api/proxy?url=' + encodeURIComponent(url);
+    }
+  } catch(e) {}
+  return url;
+}
+
 async function loadBrandLogoAsCard(brand) {
-  return new Promise(resolve => {
-    const img = new Image();
-    // Don't set crossOrigin for wiki images — they block canvas but load fine as img
-    if (!brand.isWiki) img.crossOrigin = 'anonymous';
-    const timer = setTimeout(() => resolve(false), 10000);
-    img.onload = () => {
-      clearTimeout(timer);
-      if (img.naturalWidth < 8) {
-        // Image loaded but empty — trigger onerror fallback
-        img.dispatchEvent(new Event('error'));
-        return;
-      }
+  const brandIsGame = isGameBrand(brand.core || brand.name);
+  const isTrustedLogo = brand.source && (brand.source.startsWith('Brandfetch') || brand.source.startsWith('Logo') || brand.source === 'Clearbit');
 
-      // For wiki/tainted images: draw via second pass without crossOrigin
-      // by re-creating the image without the crossOrigin attribute
-      const useImg = brand.isWiki ? (() => {
-        const i2 = new Image(); // no crossOrigin — loads but canvas will be tainted
-        i2.src = brand.logoUrl;
-        i2.naturalWidth = img.naturalWidth;
-        i2.naturalHeight = img.naturalHeight;
-        return img; // use original — analyse() handles it
-      })() : img;
+  // Build ordered list of URLs to try
+  // For trusted CDN logos: always route through proxy first for canvas CORS
+  const urlsToTry = [];
+  if (isTrustedLogo && brand.logoUrl) {
+    urlsToTry.push({ url: proxyUrl(brand.logoUrl), displayUrl: brand.logoUrl, source: brand.source });
+    urlsToTry.push({ url: brand.logoUrl, displayUrl: brand.logoUrl, source: brand.source });
+  } else if (brand.isWiki) {
+    urlsToTry.push({ url: brand.logoUrl, displayUrl: brand.logoUrl, source: brand.source, noCorss: true });
+  } else {
+    urlsToTry.push({ url: brand.logoUrl, displayUrl: brand.logoUrl, source: brand.source });
+  }
 
-      // Detect if this is a game — if so pre-set cover mode
-      const brandIsGame = isGameBrand(brand.core || brand.name);
+  // Logo.dev fallback
+  if (brand.domain && !brandIsGame) {
+    const ldUrl = 'https://img.logo.dev/' + brand.domain + '?token=pk_f_Xq6W7bTMmM_bckjU7c_Q&size=512&format=png&retina=true';
+    urlsToTry.push({ url: proxyUrl(ldUrl), displayUrl: ldUrl, source: 'Logo.dev' });
+  }
 
-      // Detect if logo is from a trusted CDN (Brandfetch API / Logo.dev)
-      const isTrustedLogo = brand.source && (brand.source.startsWith('Brandfetch') || brand.source.startsWith('Logo') || brand.source === 'Clearbit');
-
-      const item = {
-        img: useImg,
-        name: (brand.core || brand.name) + '.png',
-        url: brand.logoUrl,
-        w: img.naturalWidth  || 400,  // SVG reports 0, use fallback
-        h: img.naturalHeight || 200,
-        brandName: brand.core || brand.name,
-        isGame: brandIsGame,
-        result: brandIsGame ? {
-          mode: 'cover', bg: '#000000', scale: 100, offY: 0, thresh: 45,
-          note: 'game · cover', manual: false, logoBbox: null, aiMode: 'photo',
-          noBgRemove: false
-        } : isTrustedLogo ? {
-          mode: 'logo', bg: brand.brandBg || '#ffffff', scale: 85, offY: 0, thresh: 80,
-          note: 'logo · ' + brand.source, manual: false, logoBbox: null, aiMode: 'logo',
-          noBgRemove: true, _contrastChecked: false
-        } : null,
-        proc: !brandIsGame && !isTrustedLogo,  // trusted logos skip pixel analysis
-        corsBlocked: brand.isWiki || false,
-      };
-      S.files.push(item);
-      const fileIdx = S.files.length - 1;
-      renderGrid();
-      setTimeout(() => analyse(fileIdx), 20);
-      resolve(true);
-    };
-    img.onerror = () => {
-      clearTimeout(timer);
-      // Try Logo.dev as fallback before giving up
-      if (!brand._logodevTried && brand.domain) {
-        brand._logodevTried = true;
-        const logodevUrl = 'https://img.logo.dev/' + brand.domain + '?token=pk_f_Xq6W7bTMmM_bckjU7c_Q&size=512&format=png&retina=true';
-        console.log('[loadBrandLogoAsCard] fallback to Logo.dev:', logodevUrl);
-        brand.logoUrl = logodevUrl;
-        brand.brandBg = brand.brandBg || '#ffffff';
-        const img2 = new Image();
-        img2.crossOrigin = 'anonymous';
-        const t2 = setTimeout(() => resolve(false), 8000);
-        img2.onload = () => {
-          clearTimeout(t2);
-          if (img2.naturalWidth < 8) { resolve(false); return; }
-          const item2 = {
-            img: img2,
-            name: (brand.core || brand.name) + '.png',
-            url: logodevUrl,
-            w: img2.naturalWidth || 400,
-            h: img2.naturalHeight || 400,
-            brandName: brand.core || brand.name,
-            isGame: false,
-            result: { mode:'logo', bg: brand.brandBg || '#ffffff', scale:80, offY:0, thresh:80,
-              note:'logo · Logo.dev', manual:false, logoBbox:null, aiMode:'logo',
-              noBgRemove:true, _contrastChecked:false },
-            proc: false,
-            corsBlocked: false,
-          };
-          S.files.push(item2);
-          const fi = S.files.length - 1;
-          renderGrid();
-          setTimeout(() => analyse(fi), 20);
-          resolve(true);
+  function tryLoad(attempts) {
+    return new Promise(resolve => {
+      if (!attempts.length) return resolve(false);
+      const attempt = attempts[0];
+      const rest = attempts.slice(1);
+      const img = new Image();
+      if (!attempt.noCors) img.crossOrigin = 'anonymous';
+      const timer = setTimeout(() => { img.src = ''; tryLoad(rest).then(resolve); }, 10000);
+      img.onload = () => {
+        clearTimeout(timer);
+        if (img.naturalWidth < 8) { tryLoad(rest).then(resolve); return; }
+        const src = attempt.source || brand.source || 'CDN';
+        const item = {
+          img,
+          name: (brand.core || brand.name) + '.png',
+          url: attempt.displayUrl,
+          w: img.naturalWidth  || 400,
+          h: img.naturalHeight || 200,
+          brandName: brand.core || brand.name,
+          isGame: brandIsGame,
+          result: brandIsGame ? {
+            mode: 'cover', bg: '#000000', scale: 100, offY: 0, thresh: 45,
+            note: 'game · cover', manual: false, logoBbox: null, aiMode: 'photo',
+            noBgRemove: false
+          } : isTrustedLogo || src === 'Logo.dev' ? {
+            mode: 'logo', bg: brand.brandBg || '#ffffff', scale: 85, offY: 0, thresh: 80,
+            note: 'logo · ' + src, manual: false, logoBbox: null, aiMode: 'logo',
+            noBgRemove: true, _contrastChecked: false
+          } : null,
+          proc: !brandIsGame && !(isTrustedLogo || src === 'Logo.dev'),
+          corsBlocked: attempt.noCors || false,
         };
-        img2.onerror = () => { clearTimeout(t2); resolve(false); };
-        img2.src = logodevUrl;
-      } else {
-        resolve(false);
-      }
-    };
-    img.src = brand.logoUrl;
-  });
+        S.files.push(item);
+        const fileIdx = S.files.length - 1;
+        renderGrid();
+        setTimeout(() => analyse(fileIdx), 20);
+        resolve(true);
+      };
+      img.onerror = () => { clearTimeout(timer); console.warn('[loadBrandLogoAsCard] failed:', attempt.url); tryLoad(rest).then(resolve); };
+      img.src = attempt.url;
+    });
+  }
+
+  return tryLoad(urlsToTry);
 }
 
 
