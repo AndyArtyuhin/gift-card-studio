@@ -2330,8 +2330,8 @@ async function loadBrandLogoAsCard(brand) {
         img: useImg,
         name: (brand.core || brand.name) + '.png',
         url: brand.logoUrl,
-        w: img.naturalWidth,
-        h: img.naturalHeight,
+        w: img.naturalWidth  || 400,  // SVG reports 0, use fallback
+        h: img.naturalHeight || 200,
         brandName: brand.core || brand.name,
         isGame: brandIsGame,
         result: brandIsGame ? {
