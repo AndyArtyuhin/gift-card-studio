@@ -1103,10 +1103,10 @@ const GAME_BRANDS = new Set([
   // Mobile/Casual
   'clash of clans','clash royale','candy crush','angry birds',
   'temple run','subway surfers','among us','fall guys',
-  // Platforms & Services
-  'steam','epic games','playstation','xbox','nintendo','nintendo switch',
-  'game pass','ps plus','psn','xbox live','discord nitro','twitch',
-  'ea play','ubisoft','activision','blizzard',
+  // Platforms & Services (NOT treated as games — they have brand logos)
+  'steam','epic games',
+  'game pass','ps plus','psn','discord nitro','twitch',
+  'ea play',
 ]);
 
 function isGameBrand(name) {
@@ -2061,8 +2061,15 @@ async function findBrandLogo(name, apiKey) {
     const bfData = await bfResp.json();
     if (bfData.logos && bfData.logos.length > 0) {
       // Get primary brand color
-      const brandColor = (bfData.colors && bfData.colors[0]) || '#ffffff';
-      const brandColorIsDark = luminance(...hexToRgb(brandColor)) < 0.4;
+      const brandColor = (bfData.colors && bfData.colors.length > 0 && bfData.colors[0].startsWith('#'))
+        ? bfData.colors[0] : '#ffffff';
+      console.log('[Brandfetch] Brand colors:', bfData.colors, '→ using:', brandColor);
+      let brandColorIsDark = false;
+      try {
+        brandColorIsDark = luminance(...hexToRgb(brandColor)) < 0.4;
+      } catch(e) {
+        console.warn('[Brandfetch] luminance calc error:', e.message, 'for color:', brandColor);
+      }
 
       // Find wordmark (type="logo") variants for light and dark themes
       const pngLogos = bfData.logos.filter(l => l.format !== 'svg');
