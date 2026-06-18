@@ -669,9 +669,12 @@ function draw(canvas,item,W,H,fw,fh,fx,fy,ov){
 
     } else if (r.noBgRemove) {
       // ── Trusted source (Logo.dev/Brandfetch) — no bg removal ──
-      const sf = Math.min(fw*sc/iw, fh*sc/ih);
-      const dw = iw*sf, dh = ih*sf;
-      const dx = fx + (fw-dw)/2, dy = fy + (fh-dh)/2 + (r.offY||0);
+      // Use naturalWidth/Height, fallback to canvas size for SVG (reports 0)
+      const rw = img.naturalWidth  || W;
+      const rh = img.naturalHeight || H;
+      const sf = Math.min(fw*sc/rw, fh*sc/rh) * (r.scale/100||0.85);
+      const dw = rw*sf, dh = rh*sf;
+      const dx = fx + (fw*sc-dw)/2, dy = fy + (fh*sc-dh)/2 + (r.offY||0);
       ctx.drawImage(img, dx, dy, dw, dh);
 
     } else {
