@@ -2080,40 +2080,34 @@ async function findBrandLogo(name, apiKey) {
       const anyWordmark   = pngLogos.find(l => l.type === 'logo');
       const anySymbol     = pngLogos.find(l => l.type === 'symbol');
 
-      // Strategy: use brand color as bg, find logo with BEST contrast
-      let bestBg = brandColor;
-      // If brand color is nearly white, use white bg
-      if (luminance(...hexToRgb(brandColor)) > 0.85) bestBg = '#ffffff';
+      // Strategy: WORDMARK ALWAYS FIRST, brand color as bg
+      const bgLum = luminance(...hexToRgb(brandColor));
+      let bestBg = bgLum > 0.85 ? '#ffffff' : brandColor;
 
-      // Collect all candidate logos — prefer wordmarks, then symbols
-      const candidates = [
-        ...pngLogos.filter(l => l.type === 'logo' && l.theme === 'dark'),
-        ...pngLogos.filter(l => l.type === 'logo' && l.theme === 'light'),
-        ...pngLogos.filter(l => l.type === 'symbol' && l.theme === 'dark'),
-        ...pngLogos.filter(l => l.type === 'symbol' && l.theme === 'light'),
-        ...pngLogos.filter(l => l.type === 'icon'),
-      ];
-
-      // For each candidate, estimate contrast with bg
-      // Dark theme logos are typically white/light → good on dark/colored bg
-      // Light theme logos are typically dark → good on white/light bg
-      let bestLogo = candidates[0];
-      const bgLum = luminance(...hexToRgb(bestBg));
+      // RULE: wordmark (type=logo) is ALWAYS priority #1
+      // Pick the theme that contrasts with bg
+      const allLogos = pngLogos; // includes SVG now
+      let bestLogo;
 
       if (bgLum < 0.5) {
-        // Dark/colored bg → prefer dark-theme variants (they're white/light)
-        // Check symbol dark first — often the truly white version
-        bestLogo = pngLogos.find(l => l.type === 'symbol' && l.theme === 'dark')
-                || pngLogos.find(l => l.type === 'logo' && l.theme === 'dark')
-                || pngLogos.find(l => l.theme === 'dark')
-                || candidates[0];
+        // Dark/colored bg → need light/white logo
+        bestLogo = allLogos.find(l => l.type === 'logo' && l.theme === 'dark')   // wordmark for dark bg
+                || allLogos.find(l => l.type === 'logo' && l.theme === 'light')  // any wordmark
+                || allLogos.find(l => l.type === 'logo')                         // any wordmark at all
+                || allLogos.find(l => l.type === 'symbol' && l.theme === 'dark') // symbol fallback
+                || allLogos.find(l => l.type === 'symbol')
+                || allLogos[0];
       } else {
-        // Light bg → prefer light-theme variants (they're dark/colored)
-        bestLogo = pngLogos.find(l => l.type === 'logo' && l.theme === 'light')
-                || pngLogos.find(l => l.type === 'symbol' && l.theme === 'light')
-                || pngLogos.find(l => l.theme === 'light')
-                || candidates[0];
+        // Light/white bg → need dark logo
+        bestLogo = allLogos.find(l => l.type === 'logo' && l.theme === 'light')  // wordmark for light bg
+                || allLogos.find(l => l.type === 'logo' && l.theme === 'dark')   // any wordmark
+                || allLogos.find(l => l.type === 'logo')                         // any wordmark at all
+                || allLogos.find(l => l.type === 'symbol' && l.theme === 'light')
+                || allLogos.find(l => l.type === 'symbol')
+                || allLogos[0];
       }
+
+      console.log('[Brandfetch] Selected:', bestLogo?.type, bestLogo?.theme, bestLogo?.format, 'for bg:', bestBg);
 
       if (bestLogo && bestLogo.url) {
         entry.logoUrl   = bestLogo.url;
