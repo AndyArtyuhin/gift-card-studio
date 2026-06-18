@@ -2189,6 +2189,9 @@ async function loadBrandLogoAsCard(brand) {
       // Detect if this is a game — if so pre-set cover mode
       const brandIsGame = isGameBrand(brand.core || brand.name);
 
+      // Detect if logo is from a trusted CDN (Brandfetch API / Logo.dev)
+      const isTrustedLogo = brand.source === 'Brandfetch' || brand.source === 'Logo.dev';
+
       const item = {
         img: useImg,
         name: (brand.core || brand.name) + '.png',
@@ -2199,9 +2202,14 @@ async function loadBrandLogoAsCard(brand) {
         isGame: brandIsGame,
         result: brandIsGame ? {
           mode: 'cover', bg: '#000000', scale: 100, offY: 0, thresh: 45,
-          note: 'game · cover', manual: false, logoBbox: null, aiMode: 'photo'
+          note: 'game · cover', manual: false, logoBbox: null, aiMode: 'photo',
+          noBgRemove: false
+        } : isTrustedLogo ? {
+          mode: 'logo', bg: '#ffffff', scale: 85, offY: 0, thresh: 80,
+          note: 'logo · ' + brand.source, manual: false, logoBbox: null, aiMode: 'logo',
+          noBgRemove: true, _contrastChecked: false
         } : null,
-        proc: !brandIsGame,  // games skip AI analysis
+        proc: !brandIsGame && !isTrustedLogo,  // trusted logos skip pixel analysis
         corsBlocked: brand.isWiki || false,
       };
       S.files.push(item);
