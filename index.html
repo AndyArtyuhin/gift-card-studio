@@ -2086,6 +2086,7 @@ async function findBrandLogo(name, apiKey) {
       // 3. Wordmark ALWAYS priority over symbol
 
       const allLogos = bfData.logos;
+      console.log('[Brandfetch] logos:', allLogos.map(l => l.type+'/'+l.theme+'/'+l.format+'/'+l.width+'px').join(', '));
       const bgLum = luminance(...hexToRgb(brandColor));
 
       // Pick logo theme based on bg luminance
