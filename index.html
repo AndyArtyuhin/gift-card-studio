@@ -665,8 +665,15 @@ function draw(canvas,item,W,H,fw,fh,fx,fy,ov){
         ctx.drawImage(img, srcX,srcY,srcW,srcH, dx,dy,dw,dh);
       }
 
+    } else if (r.noBgRemove) {
+      // ── Trusted source (Logo.dev/Brandfetch) — no bg removal ──
+      const sf = Math.min(fw*sc/iw, fh*sc/ih);
+      const dw = iw*sf, dh = ih*sf;
+      const dx = fx + (fw-dw)/2, dy = fy + (fh-dh)/2 + (r.offY||0);
+      ctx.drawImage(img, dx, dy, dw, dh);
+
     } else {
-      // ── Pixel-based bg removal fallback ──
+      // ── Pixel-based bg removal fallback (for uploaded files) ──
       const tmpOff=new OffscreenCanvas(iw,ih);
       const tmpCtx=tmpOff.getContext('2d');tmpCtx.drawImage(img,0,0);
       const tmpD=tmpCtx.getImageData(0,0,iw,ih).data;
@@ -1248,20 +1255,18 @@ async function fetchAltLogos(brandName) {
   const alts   = [];
   const seen   = new Set();
 
-  async function tryAdd(url, label, bg, mode = 'logo') {
-    if (!url || seen.has(url)) return false;
+  function tryAddSync(url, label, bg) {
+    if (!url || seen.has(url)) return;
     seen.add(url);
-    const ok = await probeImageUrl(url);
-    if (ok) { alts.push({ url, label, bg: bg || '#ffffff', mode }); return true; }
-    return false;
+    alts.push({ url, label, bg: bg || '#ffffff', mode: 'logo', noBgRemove: true });
   }
 
-  // ═══ SOURCE 1: Logo.dev — premium logo CDN ═══
+  // ═══ SOURCE 1: Logo.dev — full logo variants (no icon-only) ═══
   const LOGODEV_TOKEN = 'pk_f_Xq6W7bTMmM_bckjU7c_Q';
   const logodevVariants = [
-    { url: 'https://img.logo.dev/' + domain + '?token=' + LOGODEV_TOKEN + '&size=512&format=png&retina=true',                label: 'Logo.dev HD',     bg: '#ffffff' },
-    { url: 'https://img.logo.dev/' + domain + '?token=' + LOGODEV_TOKEN + '&size=512&format=png&theme=dark',                 label: 'Logo.dev dark',   bg: '#000000' },
-    { url: 'https://img.logo.dev/' + domain + '?token=' + LOGODEV_TOKEN + '&size=512&format=png&theme=light',                label: 'Logo.dev light',  bg: '#ffffff' },
+    { url: 'https://img.logo.dev/' + domain + '?token=' + LOGODEV_TOKEN + '&size=512&format=png&retina=true',                label: 'Logo.dev full',    bg: '#ffffff' },
+    { url: 'https://img.logo.dev/' + domain + '?token=' + LOGODEV_TOKEN + '&size=512&format=png&theme=dark&retina=true',     label: 'Logo.dev dark',    bg: '#000000' },
+    { url: 'https://img.logo.dev/' + domain + '?token=' + LOGODEV_TOKEN + '&size=512&format=png&theme=light&retina=true',    label: 'Logo.dev light',   bg: '#ffffff' },
   ];
 
   const ldResults = await Promise.allSettled(
@@ -1269,37 +1274,16 @@ async function fetchAltLogos(brandName) {
   );
   for (const r of ldResults) {
     if (r.status === 'fulfilled' && r.value.ok) {
-      const { v } = r.value;
-      if (!seen.has(v.url)) {
-        seen.add(v.url);
-        alts.push({ url: v.url, label: v.label, bg: v.bg, mode: 'logo' });
-      }
+      tryAddSync(r.value.v.url, r.value.v.label, r.value.v.bg);
     }
   }
   console.log('[Alt] After Logo.dev:', alts.length);
 
-  // ═══ SOURCE 1b: Wikimedia wordmarks (priority — find text logos) ═══
-  const earlyWikiResults = await searchWikimedia(core);
-  // Take top 3 wordmark-looking results first
-  const wordmarkFirst = earlyWikiResults.filter(r => /wordmark|word|text|full/i.test(r.label)).slice(0, 3);
-  for (const item of wordmarkFirst) {
-    await tryAdd(item.url, item.label, '#ffffff');
-  }
-  // Then top 2 regular ones
-  const remainingWiki = earlyWikiResults.filter(r => !wordmarkFirst.includes(r)).slice(0, 3);
-  for (const item of remainingWiki) {
-    if (alts.length >= 8) break;
-    await tryAdd(item.url, item.label, '#ffffff');
-  }
-  console.log('[Alt] After Wikimedia priority:', alts.length);
-
-  // ═══ SOURCE 2: Brandfetch — high quality logo CDN (parallel probing) ═══
+  // ═══ SOURCE 2: Brandfetch — full logo (wide formats, no icon crops) ═══
   const bfVariants = [
     { url: 'https://cdn.brandfetch.io/' + domain + '/w/800/h/200',  label: 'Brandfetch wide',    bg: '#ffffff' },
-    { url: 'https://cdn.brandfetch.io/' + domain + '/w/400/h/400',  label: 'Brandfetch square',  bg: '#ffffff' },
-    { url: 'https://cdn.brandfetch.io/' + domain + '/w/512/h/512',  label: 'Brandfetch large',   bg: '#000000' },
-    { url: 'https://cdn.brandfetch.io/' + domain + '/w/1200/h/300', label: 'Brandfetch banner',  bg: '#f4f4f5' },
-    { url: 'https://cdn.brandfetch.io/' + domain + '/w/200/h/200',  label: 'Brandfetch icon',    bg: '#ffffff' },
+    { url: 'https://cdn.brandfetch.io/' + domain + '/w/1200/h/300', label: 'Brandfetch banner',  bg: '#ffffff' },
+    { url: 'https://cdn.brandfetch.io/' + domain + '/w/600/h/200',  label: 'Brandfetch logo',    bg: '#000000' },
   ];
 
   const bfResults = await Promise.allSettled(
@@ -1307,56 +1291,15 @@ async function fetchAltLogos(brandName) {
   );
   for (const r of bfResults) {
     if (r.status === 'fulfilled' && r.value.ok) {
-      const { v } = r.value;
-      if (!seen.has(v.url)) {
-        seen.add(v.url);
-        alts.push({ url: v.url, label: v.label, bg: v.bg, mode: 'logo' });
-      }
+      tryAddSync(r.value.v.url, r.value.v.label, r.value.v.bg);
     }
   }
   console.log('[Alt] After Brandfetch:', alts.length);
 
-  // ═══ SOURCE 3: Google Images via /api/search proxy ═══
-  try {
-    const googleResults = await searchGoogleImages(core, 10);
-    for (const item of googleResults) {
-      if (alts.length >= 10) break;
-      await tryAdd(item.url, item.label || 'Google', item.bg || '#ffffff');
-    }
-    console.log('[Alt] After Google:', alts.length);
-  } catch(e) { console.warn('[Alt] Google failed:', e.message); }
-
-  // ═══ SOURCE 4: Remaining Wikimedia results ═══
-  for (const item of earlyWikiResults) {
-    if (alts.length >= 14) break;
-    await tryAdd(item.url, item.label, '#ffffff');
-  }
-
-  // ═══ SOURCE 4: Wikipedia article image ═══
-  const wpResults = await searchWikipediaBrand(core);
-  for (const item of wpResults) {
-    if (alts.length >= 12) break;
-    await tryAdd(item.url, item.label, '#f4f4f5');
-  }
-
-  // ═══ SOURCE 5: Clearbit (different sizes) ═══
-  if (alts.length < 12) {
-    await tryAdd('https://logo.clearbit.com/' + domain + '?size=512', 'Clearbit HD',   '#ffffff');
-    await tryAdd('https://logo.clearbit.com/' + domain + '?size=128', 'Clearbit icon', '#000000');
-  }
-
-  // ═══ SOURCE 6: Official site common paths ═══
-  if (alts.length < 12) {
-    const paths = ['/apple-touch-icon.png','/logo.png','/logo.svg','/images/logo.png','/assets/logo.png'];
-    for (const p of paths) {
-      if (alts.length >= 12) break;
-      await tryAdd('https://' + domain + p, 'Site: ' + p.split('/').pop(), '#ffffff');
-    }
-  }
-
-    // ═══ On black + On white ═══
-  alts.push({ url: null, label: 'On black', bg: '#000000', mode: 'logo', useCurrentImg: true });
-  alts.push({ url: null, label: 'On white', bg: '#ffffff', mode: 'logo', useCurrentImg: true });
+  // ═══ Brand color variants of current logo ═══
+  // These will be filled with actual brand colors when item is loaded
+  alts.push({ url: null, label: 'On white', bg: '#ffffff', mode: 'logo', useCurrentImg: true, noBgRemove: true });
+  alts.push({ url: null, label: 'On black', bg: '#000000', mode: 'logo', useCurrentImg: true, noBgRemove: true });
 
   return alts;
 }
@@ -2236,6 +2179,7 @@ async function openAltPicker(slotIdx) {
             logoBbox: null,
             aiMode:   alt.mode === 'cover' ? 'photo' : 'logo',
             manual: true,
+            noBgRemove: alt.noBgRemove || false,
           },
           _label: alt.label,
         });
