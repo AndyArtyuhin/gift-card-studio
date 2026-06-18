@@ -15,11 +15,12 @@ module.exports = async (req, res) => {
     if (!resp.ok) { res.status(resp.status).json({ error: 'Brandfetch: ' + resp.status }); return; }
     const data = await resp.json();
 
-    const logos = [];
+    // Collect all logo formats
+    const rawLogos = [];
     for (const logo of (data.logos || [])) {
       for (const fmt of (logo.formats || [])) {
         if (!fmt.src) continue;
-        logos.push({
+        rawLogos.push({
           type:   logo.type  || 'logo',
           theme:  logo.theme || 'light',
           url:    fmt.src,
@@ -30,15 +31,34 @@ module.exports = async (req, res) => {
       }
     }
 
-    // Sort: wordmark (logo) first, then symbol, largest first within type
+    // Sort: wordmark first, largest first
     const order = { logo: 0, symbol: 1, icon: 2 };
-    logos.sort((a, b) => {
+    rawLogos.sort((a, b) => {
       const td = (order[a.type] ?? 3) - (order[b.type] ?? 3);
       return td !== 0 ? td : (b.width - a.width);
     });
 
+    // Download each logo and convert to base64 data URL
+    // This bypasses CORS — browser gets data URL, no auth needed
+    const logos = await Promise.all(rawLogos.map(async (l) => {
+      try {
+        const imgResp = await fetch(l.url, {
+          headers: { 'Authorization': 'Bearer ' + API_KEY }
+        });
+        if (!imgResp.ok) return null;
+        const buf = await imgResp.arrayBuffer();
+        const b64 = Buffer.from(buf).toString('base64');
+        const mime = l.format === 'svg' ? 'image/svg+xml' : 'image/png';
+        return { ...l, url: `data:${mime};base64,${b64}` };
+      } catch(e) {
+        return null;
+      }
+    }));
+
+    const validLogos = logos.filter(Boolean);
     const colors = (data.colors || []).map(c => c.hex).filter(Boolean);
-    res.status(200).json({ name: data.name || domain, domain, logos, colors });
+
+    res.status(200).json({ name: data.name || domain, domain, logos: validLogos, colors });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
