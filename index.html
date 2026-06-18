@@ -2122,25 +2122,34 @@ async function findBrandLogo(name, apiKey) {
       const hasDarkSvg  = allLogos.some(l => l.theme === 'dark'  && l.format === 'svg');
 
       if (bgLum < 0.35) {
-        // Dark brand color → want light/white logo on dark bg
+        // Dark brand color → want white/light logo on dark bg
         if (hasDarkPng) {
-          // Has white/light PNG → use brand color as bg
-          bestBg   = brandColor;
-          bestLogo = pickWordmark(true);
-        } else if (hasDarkSvg) {
-          // Only SVG dark variant → use brand color, CDN will handle
+          // Has white PNG → use brand color as bg
           bestBg   = brandColor;
           bestLogo = pickWordmark(true);
         } else {
-          // No dark variant at all → white bg with light-theme logo
-          bestBg   = '#ffffff';
-          bestLogo = pickWordmark(false);
+          // No dark PNG (only SVG or none) → force CDN dark theme URL (returns PNG)
+          // CDN path /theme/dark/ gives white logo as PNG regardless of API format
+          const cdnDark = {
+            type:   'logo',
+            theme:  'dark',
+            url:    'https://cdn.brandfetch.io/' + entry.domain + '/theme/dark/w/800/h/200',
+            format: 'png',
+          };
+          const cdnDarkSq = {
+            type:   'logo',
+            theme:  'dark',
+            url:    'https://cdn.brandfetch.io/' + entry.domain + '/theme/dark/w/400/h/400',
+            format: 'png',
+          };
+          bestBg   = brandColor;
+          bestLogo = cdnDark;
         }
       } else if (bgLum > 0.7) {
         bestBg   = '#ffffff';
         bestLogo = pickWordmark(false);
       } else {
-        // Mid-range (orange etc) → always white bg
+        // Mid-range (orange, yellow etc) → white bg with dark logo
         bestBg   = '#ffffff';
         bestLogo = pickWordmark(false);
       }
