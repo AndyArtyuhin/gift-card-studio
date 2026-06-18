@@ -1795,6 +1795,13 @@ function drawExport(canvas,item,W,H,fw,fh,fx,fy,ov,SCALE){
         ctx.drawImage(img,srcX,srcY,srcW,srcH,
           fx+(fw-dw)/2,fy+(fh-dh)/2+(r.offY||0)*SCALE,dw,dh);
       }
+    } else if (r.noBgRemove) {
+      // Trusted CDN logo — no bg removal, just center-fit
+      const rw = img.naturalWidth  || W;
+      const rh = img.naturalHeight || H;
+      const sf = Math.min(fw*sc/rw, fh*sc/rh) * (r.scale/100||0.85);
+      const dw = rw*sf, dh = rh*sf;
+      ctx.drawImage(img, fx+(fw*sc-dw)/2, fy+(fh*sc-dh)/2+(r.offY||0)*SCALE, dw, dh);
     } else {
       const tmpOff=new OffscreenCanvas(iw,ih);
       const tmpCtx=tmpOff.getContext('2d');tmpCtx.drawImage(img,0,0);
