@@ -735,13 +735,13 @@ function updateCanvas(idx){
   const item=S.files[idx];if(!item?.result)return;
 
   // ── Contrast auto-fix: ensure logo doesn't blend with bg ──
-  if (item.result.mode === 'logo' && item.img && !item.result._contrastChecked) {
+  // Skip for trusted sources (Brandfetch/Logo.dev) — brand color bg is intentional
+  if (item.result.mode === 'logo' && item.img && !item.result._contrastChecked && !item.result.noBgRemove) {
     try {
       const domColor = getLogoDominantColor(item.img);
       if (domColor && item.result.bg) {
         const ratio = contrastRatio(domColor, item.result.bg);
         if (ratio < 3.0) {
-          // Low contrast — swap bg
           item.result.bg = pickContrastingBg(domColor, item.result.bg);
           console.log('[Contrast] Fixed bg for', item.name, '→', item.result.bg, '(logo color:', domColor, 'ratio was:', ratio.toFixed(1)+')');
         }
